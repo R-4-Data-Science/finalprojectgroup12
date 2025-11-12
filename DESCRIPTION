@@ -1,11 +1,18 @@
 Package: finalprojectgroup12
-Title: What the Package Does (One Line, Title Case)
+Title: Multi-Path Stepwise Selection for Linear and Logistic Models
 Version: 0.0.0.9000
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+    person("Lijuan", "Wang", email = "liw0004@ auburn.edu", role = c("aut", "cre"))
+    person("Evan", "Jerome", email = "ezj0049@auburn.edu", role = c("aut", "cre"))
+    person("Kira", "Noordwijk", email = "kjn0012@auburn.edu", role = c("aut", "cre"))
+Description: Implements multi-path forward stepwise selection for linear (Gaussian)
+  and logistic (binomial) models, including resampling-based stability estimation
+  and plausible model selection using AIC and stability metrics.
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
+VignetteBuilder: knitr
+
+
+

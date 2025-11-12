@@ -1,6 +1,6 @@
 ---
 title: "Multi-Path Stepwise Selection"
-author: "Lijuan Wang"
+author: "Lijuan Wang，Evan Jerome, Kira Noordwijk"
 date: "2025-11-12"
 output: 
   html_document:
@@ -81,3 +81,4 @@ kable(plaus_bin, caption = "Plausible logistic models")
 # Uncomment and use if confusion_metrics() is implemented
 # confusion_metrics(fit, cutoff = 0.5)
 ```
+
