@@ -8,6 +8,12 @@ output:
     toc_float: true
 ---
 
+# Abstract
+
+This report demonstrates the `finalprojectgroup12` package that implements a multi-path forward stepwise selection using AIC, resampling-based stability estimation, and plausible model selection. We illustrate the workflow with a small simulated Gaussian example and a simulated logistic example, show variable stability results, and produce a final set of plausible models based on AIC tolerance and average stability thresholds.
+
+
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 # Load package
