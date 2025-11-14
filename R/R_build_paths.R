@@ -1,28 +1,32 @@
-#' Build multi-path forward selection using AIC
+#' @title Build multi-path forward selection using AIC
 #'
-#' A compact implementation of the multi-path forward selection described
+#' @description A compact implementation of the multi-path forward selection described
 #' in the project specification. Starts from the empty model and at each
 #' step tries adding each unused variable to every current model, keeps
 #' near-best children per parent within `delta` of the parent's best child,
 #' and requires improvement >= eps. Deduplicates and caps models per level by L.
 #'
-#' @param x data.frame or matrix of predictors.
-#' @param y response vector.
-#' @param family "gaussian" or "binomial".
-#' @param K maximum number of steps (default min(p,10)).
-#' @param eps minimum AIC improvement to expand (default 1e-6).
-#' @param delta AIC tolerance for near-ties (default 1).
-#' @param L max number of models kept per level (default 50).
-#' @return A list with elements:
+#' @param x A \code{data.frame} (matrix) of numerical predictors.
+#' @param y A \code{vector} of a numerical response.
+#' @param family A \code{string} containing what family distribution y follows. Must be gaussian or binomial.
+#' @param K A \code{numeric} used to denote the maximum number of steps (default min(p,10)).
+#' @param eps A \code{numeric} used to denote the minimum AIC improvement to expand (default 1e-6).
+#' @param delta A \code{numeric} used to denote the AIC tolerance for near-ties (default 1).
+#' @param L A \code{numeric} used to denote the max number of models kept per level (default 50).
+#' @return A \code{list} with elements:
+#' \describe{
 #' \item{path_forest}{list of frontiers (each frontier is a list of model entries)}
 #' \item{aic_by_model}{data.frame of unique models and their AICs}
 #' \item{meta}{parameters and counts}
 #' \item{fits}{named list of fitted model objects (may be many)}
+#' }
+#' @author Lijuan Wang, Kira Noordwijk, Evan Jerome
+#' @export
 #' @examples
 #' \dontrun{
 #' forest <- build_paths(x = X, y = y, family = "gaussian", K = 6)
+#' forest <- build_paths(x = X, y = y, family = "binomial", K = 6, eps = 1e-2, delta = 2, L = 40)
 #' }
-#' @export
 build_paths <- function(x, y, family = c("gaussian","binomial"),
                         K = NULL, eps = 1e-6, delta = 1, L = 50) {
   family <- match.arg(family)
