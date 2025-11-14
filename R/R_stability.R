@@ -1,13 +1,26 @@
-#' Compute variable stability via resampling
+#' @title Compute variable stability via resampling
 #'
-#' @param x predictor matrix or data.frame
-#' @param y response vector
-#' @param B number of resamples
-#' @param resample "bootstrap" or "subsample"
-#' @param m subsample size if resample="subsample"
+#' @description Computing stability of elements selected by multi-path forward regression
+#' by resampling and rerunning multi-path forward regression on each rerun.
+#'
+#' @param x A \code{data.frame} (matrix) of numerical predictors.
+#' @param y A \code{vector} of a numerical response.
+#' @param B A \code{numeric} (integer) used to denote number of resamples (default = 50).
+#' @param resample A \code{string} used to denote type of resampling. Must be bootstrap or subsample.
+#' @param m A \code{numeric} used to denote subsample size if resample="subsample"
 #' @param ... additional parameters passed to build_paths()
-#' @return list with pi (variable stability) and metadata
+#' @return A \code{list} with elements:
+#' \describe{
+#' \item{pi}{each variables stability}
+#' \item{metadata}{parameters and counts}
+#' }
+#' @author Lijuan Wang, Kira Noordwijk, Evan Jerome
 #' @export
+#' @examples
+#' \dontrun{
+#' stable <- stability(x = X, y = y, B = 50, resample = "bootstrap")
+#' stable <- stability(x = X, y = y, B = 40, resample = "subsample", m = 100)
+#' }
 stability <- function(x, y, B = 50, resample = "bootstrap", m = NULL, ...) {
   x <- as.data.frame(x)
   n <- nrow(x); p <- ncol(x)

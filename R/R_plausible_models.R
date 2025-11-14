@@ -1,12 +1,22 @@
-#' Select plausible models based on AIC and average stability
+#' @title Select plausible models based on AIC and average stability
 #'
-#' @param forest output from build_paths()
-#' @param pi named numeric vector of variable stability
-#' @param Delta AIC tolerance (default 2)
-#' @param tau minimum average stability threshold (default 0.6)
-#' @param jaccard_thresh optional, drop near-duplicate models with Jaccard similarity >= threshold
-#' @return data.frame of plausible models with columns: key, aic, size, vars, avg_stability
+#' @description Taking a collection of models that have AIC and stability measures and keeping models
+#' that both have an AIC below a threshold and have stability across variables above a threshold.
+#'
+#' @param forest A \code{list} that is an output from build_paths()
+#' @param pi A numeric \code{vector} of variable stability
+#' @param Delta A \code{numeric] that denotes AIC tolerance (default 2)
+#' @param tau A \code{numeric} that denotes minimum average stability threshold (default 0.6)
+#' @param jaccard_thresh A \code{numeric] that denotes the threshold at which near-duplicate models are
+#' dropped if their Jaccard similarity is above
+#' @return A \code{data.frame} of plausible models with columns: key, aic, size, vars, avg_stability
+#' @author Lijuan Wang, Kira Noordwijk, Evan Jerome
 #' @export
+#' @examples
+#' \dontrun{
+#' plaus <- plausible_models(forest = forest, pi = pi)
+#' plaus <- plausible_models(forest = forest, pi = pi, Delta = 3, tau = 0.5, jaccard_thresh = 1)
+#' }
 plausible_models <- function(forest, pi, Delta = 2, tau = 0.4, jaccard_thresh = NULL) {
   models <- forest$aic_by_model
   models$avg_stability <- sapply(models$vars, function(vs) {
