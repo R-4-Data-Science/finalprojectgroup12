@@ -28,28 +28,43 @@
 #' forest <- build_paths(x = X, y = y, family = "binomial", K = 6, eps = 1e-2, delta = 2, L = 40)
 #' }
 build_paths <- function(x, y, family = c("gaussian","binomial"),
-                        K = NULL, eps = 1e-6, delta = 1, L = 50) {
+                        K = NULL, eps = 1e-6, delta = 1, L = 50,
+                        keep_fits = TRUE) {
   family <- match.arg(family)
   x <- as.data.frame(x)
   n <- nrow(x); p <- ncol(x)
   if (is.null(K)) K <- min(p, 10)
+  K <- min(K, p)
+
   varnames <- colnames(x)
-  if (is.null(varnames) || any(nchar(varnames)==0)) {
+  if (is.null(varnames) || any(nchar(varnames) == 0)) {
     colnames(x) <- paste0("V", seq_len(ncol(x)))
     varnames <- colnames(x)
   }
 
+  if (length(y) != n) stop("Length of y must equal number of rows in x.")
+  if (family == "binomial") {
+    if (is.factor(y) && nlevels(y) != 2) stop("For binomial family, y must have 2 levels.")
+    if (is.numeric(y) && !all(y %in% c(0,1))) stop("Numeric y for binomial must be 0/1.")
+    if (!is.numeric(y) && !is.logical(y) && !is.factor(y)) stop("y must be numeric 0/1, logical, or a factor for binomial family.")
+  }
+
+  # Construct data.frame once to avoid reconstruction every time it is fit
+  data_df <- data.frame(y = y, x, check.names = FALSE)
+
   # helper: fit model by variable set and compute AIC; returns list(fit,aic)
   fit_aic <- function(vars) {
     if (length(vars) == 0) {
-      if (family == "gaussian") f <- lm(y ~ 1)
-      else f <- glm(y ~ 1, family = binomial())
+      form <- as.formula("y ~ 1")
     } else {
-      form <- as.formula(paste("y ~", paste(vars, collapse = " + ")))
-      if (family == "gaussian") f <- lm(form, data = cbind(y = y, x))
-      else f <- glm(form, data = cbind(y = y, x), family = binomial())
+      form <- stats::reformulate(vars, response = "y")
     }
-    return(list(fit = f, aic = AIC(f)))
+    if (family == "gaussian") {
+      f <- stats::lm(form, data = data_df)
+    } else {
+      f <- stats::glm(form, data = data_df, family = stats::binomial())
+    }
+    return(list(fit = f, aic = stats::AIC(f)))
   }
 
   model_key <- function(vars) {
@@ -80,21 +95,25 @@ build_paths <- function(x, y, family = c("gaussian","binomial"),
 
   for (step in seq_len(K)) {
     candidates <- list()
+
     # For each parent in frontier, try adding every remaining variable
     for (parent in frontier) {
       used <- parent$vars
       remaining <- setdiff(varnames, used)
       if (length(remaining) == 0) next
+
       # create children
       children <- lapply(remaining, function(v) {
         vars <- c(used, v)
         get_entry(vars)
       })
+
       # compute AICs and select those within delta of best child provided improvement >= eps
       child_aics <- sapply(children, `[[`, "aic")
       best_child_aic <- min(child_aics)
-      # require best child improves over parent
-      if ((parent$aic - best_child_aic) < eps) next
+      improvement <- parent$aic - best_child_aic
+      # require best child improves over parent by at least eps
+      if (improvement < eps) next
       keep_idx <- which(child_aics <= (best_child_aic + delta))
       if (length(keep_idx) > 0) {
         kept <- children[keep_idx]
@@ -102,6 +121,7 @@ build_paths <- function(x, y, family = c("gaussian","binomial"),
       }
     }
     if (length(candidates) == 0) break
+
     # deduplicate candidates by key, keep best aic per key
     keys <- sapply(candidates, `[[`, "key")
     uniq_keys <- unique(keys)
@@ -109,6 +129,7 @@ build_paths <- function(x, y, family = c("gaussian","binomial"),
       group <- Filter(function(x) x$key == k, candidates)
       group[[ which.min(sapply(group, `[[`, "aic")) ]]
     })
+
     # sort by aic and cap by L
     uniq_cands <- uniq_cands[order(sapply(uniq_cands, `[[`, "aic"))]
     if (length(uniq_cands) > L) uniq_cands <- uniq_cands[1:L]
@@ -124,17 +145,33 @@ build_paths <- function(x, y, family = c("gaussian","binomial"),
   })
   aic_by_model <- if (length(aic_list) > 0) do.call(rbind, aic_list) else data.frame()
 
-  # attach vars as list-column and fits as named list
+  # attach vars as list-column and (optionally) fits as named list
   vars_list <- lapply(all_keys, function(k) get(k, envir = all_models)$vars)
-  fits_list <- lapply(all_keys, function(k) get(k, envir = all_models)$fit)
-  names(fits_list) <- all_keys
+  fits_list <- NULL
+  if (keep_fits) {
+    fits_list <- lapply(all_keys, function(k) get(k, envir = all_models)$fit)
+    names(fits_list) <- all_keys
+  }
   aic_by_model$vars <- I(vars_list)
 
-  meta <- list(params = list(K = K, eps = eps, delta = delta, L = L, family = family),
-               n_models = length(all_keys), p = p)
+  # add formula column (可读性更好) and sort by AIC
+  if (nrow(aic_by_model) > 0) {
+    aic_by_model$formula <- sapply(all_keys, function(k) {
+      vars <- get(k, envir = all_models)$vars
+      if (length(vars) == 0) "y ~ 1" else paste("y ~", paste(vars, collapse = " + "))
+    })
+    aic_by_model <- aic_by_model[order(aic_by_model$aic), , drop = FALSE]
+    rownames(aic_by_model) <- aic_by_model$key
+  }
 
-  return(list(path_forest = path_forest,
-              aic_by_model = aic_by_model,
-              meta = meta,
-              fits = fits_list))
+  meta <- list(params = list(K = K, eps = eps, delta = delta, L = L, family = family),
+               n_models = length(all_keys), p = p,
+               aic_min = if (nrow(aic_by_model) > 0) min(aic_by_model$aic) else NA)
+
+  class_out <- list(path_forest = path_forest,
+                    aic_by_model = aic_by_model,
+                    meta = meta,
+                    fits = fits_list)
+  class(class_out) <- "path_forest"
+  return(class_out)
 }
