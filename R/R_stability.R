@@ -9,6 +9,7 @@
 #' @param resample A \code{string} used to denote type of resampling. Must be bootstrap or subsample.
 #' @param m A \code{numeric} used to denote subsample size if resample="subsample"
 #' @param ... additional parameters passed to build_paths()
+#' @param verbose A \code{logical} that determines whether the function prints progress reports as it runs (default = FALSE).
 #' @return A \code{list} with elements:
 #' \describe{
 #' \item{pi}{each variables stability}

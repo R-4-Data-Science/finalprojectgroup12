@@ -13,6 +13,7 @@
 #' @param eps A \code{numeric} used to denote the minimum AIC improvement to expand (default 1e-6).
 #' @param delta A \code{numeric} used to denote the AIC tolerance for near-ties (default 1).
 #' @param L A \code{numeric} used to denote the max number of models kept per level (default 50).
+#' @param keep_fits A \code{logical} that determines whether the function saves the model fit objects (default = TRUE).
 #' @return A \code{list} with elements:
 #' \describe{
 #' \item{path_forest}{list of frontiers (each frontier is a list of model entries)}
@@ -25,7 +26,7 @@
 #' @examples
 #' \dontrun{
 #' forest <- build_paths(x = X, y = y, family = "gaussian", K = 6)
-#' forest <- build_paths(x = X, y = y, family = "binomial", K = 6, eps = 1e-2, delta = 2, L = 40)
+#' forest <- build_paths(x = X, y = y, family = "binomial", K = 6, eps = 1e-2, delta = 2, L = 40, keep_fits = FALSE)
 #' }
 build_paths <- function(x, y, family = c("gaussian","binomial"),
                         K = NULL, eps = 1e-6, delta = 1, L = 50,
