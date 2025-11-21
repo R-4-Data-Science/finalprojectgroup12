@@ -8,6 +8,11 @@
 #' @param B A \code{numeric} (integer) used to denote number of resamples (default = 50).
 #' @param resample A \code{string} used to denote type of resampling. Must be bootstrap or subsample.
 #' @param m A \code{numeric} used to denote subsample size if resample="subsample"
+#' @param family A \code{string} containing what family distribution y follows (default gaussian. Must be gaussian or binomial.
+#' @param K A \code{numeric} used to denote the maximum number of steps (default NULL).
+#' @param eps A \code{numeric} used to denote the minimum AIC improvement to expand (default 1e-6).
+#' @param delta A \code{numeric} used to denote the AIC tolerance for near-ties (default 1).
+#' @param L A \code{numeric} used to denote the max number of models kept per level (default 50).
 #' @param ... additional parameters passed to build_paths()
 #' @param verbose A \code{logical} that determines whether the function prints progress reports as it runs (default = FALSE).
 #' @return A \code{list} with elements:
@@ -20,7 +25,7 @@
 #' @examples
 #' \dontrun{
 #' stable <- stability(x = X, y = y, B = 50, resample = "bootstrap")
-#' stable <- stability(x = X, y = y, B = 40, resample = "subsample", m = 100)
+#' stable <- stability(x = X, y = y, B = 40, resample = "subsample", m = 100, verbose = TRUE)
 #' }
 stability <- function(x, y, B = 50, resample = "bootstrap", m = NULL,
                       family = "gaussian", K = NULL, eps = 1e-6, delta = 1,
