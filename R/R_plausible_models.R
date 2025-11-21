@@ -60,7 +60,7 @@ plausible_models <- function(forest, pi, Delta = 2, tau = 0.4, jaccard_thresh = 
 
   if (!is.null(jaccard_thresh) && nrow(models) > 1) {
 
-    models <- model[order(models$aic), drop = FALSE]
+    models <- models[order(models$aic), drop = FALSE]
 
     n <- nrow(models)
     keep_idx <- rep(TRUE, n)
