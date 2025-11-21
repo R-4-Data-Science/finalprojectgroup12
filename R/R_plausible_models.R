@@ -30,6 +30,7 @@ plausible_models <- function(forest, pi, Delta = 2, tau = 0.4, jaccard_thresh = 
   if (Delta < 0) stop("Delta must be non-negative")
   if (tau < 0 || tau > 1) stop("tau must be between 0 and 1")
   if (!is.null(jaccard_thresh) && (jaccard_thresh < 0 || jaccard_thresh > 1))
+    stop("jaccard_thresh must be between 0 and 1")
 
   models <- forest$aic_by_model
 
