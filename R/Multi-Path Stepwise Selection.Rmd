@@ -88,3 +88,19 @@ kable(plaus_bin, caption = "Plausible logistic models")
 # confusion_metrics(fit, cutoff = 0.5)
 ```
 
+# 3. Example Usage
+
+```{r}
+# install.packages("remotes")
+remotes::install_github("R-4-Data-Science/rashomonlite10")
+
+library(rashomonlite10)
+
+forest <- build_paths(x = X, y = as.numeric(y), family = "gaussian", K = min(ncol(X), 10), eps = 1e-6, delta = 1, L = 50)
+
+stab <- stability(x = X, y = as.numeric(y), B = 50, resample = "bootstrap", family = "gaussian", K = 10, eps = 1e-6, delta = 1, L = 50)
+
+plaus <- plausible_models(forest, pi = stab$pi, Delta = 2, tau = 0.6)
+print(plaus)
+```
+
