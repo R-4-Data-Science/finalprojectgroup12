@@ -1,0 +1,229 @@
+---
+title: "Multi-path Model Selection for Diabetes Progression"
+author: "Lijuan Wang, Evan Jerome, Kira Noordwijk"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Diabetes progression with multi-path model selection}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+```{r setup, include = FALSE}
+library(finalprojectgroup12)
+library(care)    # for the efron2004 diabetes data
+library(knitr)
+
+set.seed(123)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = TRUE
+)
+```
+
+# 1. Import Data: Diabetes Progression
+```{r}
+## 01_data.R
+## Load data and basic objects
+
+library(finalprojectgroup12)
+library(care)
+
+set.seed(123)
+
+# Load the diabetes data
+data(efron2004)
+
+# Basic structure
+str(efron2004)
+dim(efron2004$x)
+colnames(efron2004$x)
+length(efron2004$y)
+
+# Base design matrix and response
+X_base <- efron2004$x
+y      <- as.numeric(efron2004$y)
+
+p_base <- ncol(X_base)
+n      <- nrow(X_base)
+
+p_base
+n
+
+```
+
+# 2. Feature Engineering: Second-order Terms
+```{r}
+## 02_features.R
+## Requires: X_base, p_base, n from 01_data.R
+## Builds: X (full second-order design matrix)
+
+# If running separately, uncomment:
+# source("01_data.R")
+
+# Linear terms
+X_lin <- X_base
+
+# Quadratic terms
+X_quad <- X_base^2
+colnames(X_quad) <- paste0(colnames(X_base), "^2")
+
+# Pairwise interactions
+num_int   <- p_base * (p_base - 1) / 2
+X_int     <- matrix(NA_real_, nrow = n, ncol = num_int)
+int_names <- character(num_int)
+
+k <- 1
+for (i in 1:(p_base - 1)) {
+  for (j in (i + 1):p_base) {
+    X_int[, k]   <- X_base[, i] * X_base[, j]
+    int_names[k] <- paste0(colnames(X_base)[i], ":", colnames(X_base)[j])
+    k <- k + 1
+  }
+}
+colnames(X_int) <- int_names
+
+# Full second-order design matrix
+X <- cbind(X_lin, X_quad, X_int)
+
+# Quick checks
+dim(X)
+head(colnames(X))
+
+```
+
+# 3. Train/Test Split
+```{r}
+## 03_split.R
+## Requires: X, y, n from previous scripts
+## Builds: X_train, y_train, X_test, y_test
+
+# If running separately, uncomment:
+# source("01_data.R")
+# source("02_features.R")
+
+set.seed(123)
+
+train_frac <- 0.7
+n_train    <- floor(train_frac * n)
+
+train_idx <- sample(seq_len(n), size = n_train)
+
+X_train <- X[train_idx, ]
+y_train <- y[train_idx]
+
+X_test  <- X[-train_idx, ]
+y_test  <- y[-train_idx, ]
+
+c(n_train = nrow(X_train), n_test = nrow(X_test))
+
+```
+
+# 4. Multi-path Forward Selection (Gaussian)
+```{r}
+## 04_multipath.R
+## Requires: X_train, y_train from previous scripts
+## Builds: forest (multi-path object)
+
+# If running separately, uncomment:
+# library(finalprojectgroup12)
+# source("01_data.R")
+# source("02_features.R")
+# source("03_split.R")
+
+forest <- build_paths(
+  x      = X_train,
+  y      = y_train,
+  family = "gaussian",
+  K      = 10,
+  eps    = 1e-6,
+  delta  = 1,
+  L      = 50
+)
+
+# Inspect top 5 models by AIC
+head(forest$aic_by_model, 5)
+
+```
+
+# 5. Stability Selection
+```{r}
+## 05_stability.R
+## Requires: X_train, y_train
+## Builds: stab, stab_sorted
+
+# If running separately, uncomment:
+# library(finalprojectgroup12)
+# source("01_data.R")
+# source("02_features.R")
+# source("03_split.R")
+
+stab <- stability(
+  x        = X_train,
+  y        = y_train,
+  B        = 50,
+  resample = "bootstrap",
+  family   = "gaussian",
+  K        = 10
+)
+
+stab_sorted <- sort(stab$pi, decreasing = TRUE)
+
+# Inspect the most stable variables
+head(stab_sorted)
+
+```
+
+6. Plausible Model Set
+```{r}
+## 06_plausible_models.R
+## Requires: forest, stab from previous scripts
+## Builds: plaus (plausible model set)
+
+# If running separately, uncomment:
+# library(finalprojectgroup12)
+# source("01_data.R")
+# source("02_features.R")
+# source("03_split.R")
+# source("04_multipath.R")
+# source("05_stability.R")
+
+# Delta = 2: models within 2 AIC units of best
+# tau   = 0.6: variables selected in at least 60% of bootstraps
+plaus <- plausible_models(
+  forest,
+  pi    = stab$pi,
+  Delta = 2,
+  tau   = 0.6
+)
+
+plaus
+
+```
+
+# 7. Test-set Performance Template
+```{r}
+## 07_test_performance.R
+## Requires: forest, X_test, y_test from previous scripts
+
+# If running separately, uncomment:
+# library(finalprojectgroup12)
+# source("01_data.R")
+# source("02_features.R")
+# source("03_split.R")
+# source("04_multipath.R")
+
+# Example template if forest stores a list of fitted models
+best_model_name <- forest$aic_by_model$model[1]
+best_fit        <- forest$models[[best_model_name]]
+
+# Predict on the test set
+y_pred_test <- predict(best_fit, newdata = as.data.frame(X_test))
+
+# Compute test RMSE
+rmse_test <- sqrt(mean((y_test - y_pred_test)^2))
+rmse_test
+
+```
+
