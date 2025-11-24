@@ -1,0 +1,121 @@
+---
+title: "Multi-Path Stepwise Selection"
+author: "Lijuan Wang, Evan Jerome, Kira Noordwijk"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Multi-Path Stepwise Selection}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  collapse = TRUE,
+  comment = "#>"
+)
+library(finalprojectgroup12)
+library(knitr)
+set.seed(123)
+```
+
+# Abstract
+
+This vignette demonstrates the `finalprojectgroup12` package implementing multi-path forward stepwise selection(AIC), resampling-based stability estimation, and plausible model selection. We show two small simulated examples (Gaussian and Binomial), display stability summaries and plausible model sets, and compute simple logistic confusion metrics.
+
+# Notes on parameters
+For demonstration and speed we use small values (e.g. B = 20) — for a real analysis use B = 50 or larger.
+
+Chosen defaults in these examples: K equals number of predictors (or a small cap), eps = 1e-6 (tiny required AIC improvement), delta = 1 (AIC near-tie tolerance), L = 50 (cap per frontier).
+
+For plausible models we use Delta = 2 (AIC within 2 of best) and tau = 0.4 (average predictor stability threshold). These are standard-ish choices: Delta = 2 keeps models close to best AIC, tau = 0.4 filters models built from moderately stable predictors — adjust according to problem and sample size.
+
+# 1. Linear Regression Example (Gaussian)
+
+```{r}
+# simulate data
+n <- 80
+p <- 6
+X <- matrix(rnorm(n*p), n, p)
+colnames(X) <- paste0("x", 1:p)
+beta <- c(1.5, -1, 0, 0, 0.8, 0)
+y <- as.numeric(X %*% beta + rnorm(n))
+
+# build multi-path forest(linear)
+forest <- build_paths(x = X, y = y, family = "gaussian", K = 6, eps = 1e-6, delta = 1, L = 50)
+
+# show top 5 models by aic
+kable(head(forest$aic_by_model, 5), caption = "Top 5 linear models by AIC", format = "html")
+
+# stability estimation (B small here for speed; use B = 50 for final analysis)
+stab <- stability(x = X, y = y, B = 20, 
+                  build_args = list( K = 6, eps = 1e-6, delta = 1, L = 50, family = "gaussian"))
+
+# sorted stability
+stab_sorted <- sort(stab$pi, decreasing = TRUE)
+kable(data.frame(variable = names(stab_sorted), stability = stab_sorted), caption = "Variable stability (linear)",format = "html")
+
+# plausible models : aic within Delta = 2 and avg stability >= tau
+plaus <- plausible_models(forest, pi = stab$pi, Delta = 2, tau = 0.4)
+kable(plaus, caption = "Plausible linear models", format = "html")
+
+# visualize
+barplot(stab$pi, main="Variable Stability(Linear)", col="steelblue",las=2)
+```
+
+# 2. Logistic Regression Example (Binomial)
+
+```{r}
+# simulate binary classification data
+n <- 100 
+p <- 5
+Xb <- matrix(rnorm(n*p), n, p)
+colnames(Xb) <- paste0("x", 1:p)
+linpred <- 1*Xb[,1] - 1.2*Xb[,2] + 0.8*Xb[,4]
+prob <- 1 / (1 + exp(-linpred))
+ybin <- rbinom(n, 1, prob)
+
+
+# build multi-path forest(logistic)
+forest_bin <- build_paths(x = Xb, y = ybin, family = "binomial", K = 5, eps = 1e-6, delta = 1, L = 50)
+
+# show top 5 logistic models by AIC
+kable(head(forest_bin$aic_by_model, 5), caption = "Top 5 logistic models by AIC",format = "html")
+
+# stability estimation (B = 20 for vignette; increase for production)
+stab_bin <- stability( x= Xb, y = ybin, B = 20, 
+                  build_args = list( K = 5, eps = 1e-6, delta = 1, L = 50, family = "binomial"))
+
+stab_bin_sorted <- sort(stab_bin$pi, decreasing = TRUE)
+kable(data.frame(variable = names(stab_bin_sorted), stability = stab_bin_sorted), caption = "Variable stability (logistic)",format = "html")
+
+
+# plausible logistic models
+plaus_bin <- plausible_models(forest_bin, pi = stab_bin$pi, Delta = 2, tau = 0.4)
+kable(plaus_bin, caption = "Plausible logistic models", format = "html")
+
+# visualize 
+barplot(stab_bin$pi, main="Variable Stability(Logistic)", col="salmon",las=2)
+```
+
+## 2.1 Logistic: simple confusion metrics for top plausible model
+```{r}
+# build data.frame for glm
+dfb <- data.frame(y = ybin, Xb)
+
+# choose top plausible model if present
+top_model_vars <- plaus_bin$vars[[1]]
+fit <- glm(as.formula(paste("y ~", paste(top_model_vars, collapse = "+"))),
+           data = dfb, family = binomial())
+
+cm <- confusion_metrics(fit,y_true = dfb$y, cutoff = 0.5)
+cm
+```
+
+## Summary
+This vignette demonstrates the intended workflow. For a real analysis, increase B (e.g. to 50 or 100), consider cross-validation for performance check, and tune Delta/tau based on domain knowledge and stability diagnostics.
+```{r}
+sessionInfo()
+```

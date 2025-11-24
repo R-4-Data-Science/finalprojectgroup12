@@ -1,0 +1,122 @@
+#' @title Stability estimation via resampling and multi-path search
+#'
+#' @description Run multi-path forward selection on resampled datasets and computes
+#' stability scores pi_j = average proportion of models containing predictor j across resamples.
+#'
+#' @param x A \code{data.frame} (matrix) of numerical predictors.
+#' @param y A \code{vector} of numerical or factor response.
+#' @param B A \code{numeric} (integer) used to denote number of resamples (default = 50).
+#' @param resample A \code{string} used to denote type of resampling. Must be bootstrap or subsample (default = "bootstrap").
+#' @param m A \code{numeric} used to denote subsample size if resample="subsample" (default = floor(0.7*n)).
+#' @param build_args \code{list} of arguments to pass to build_paths()(except x,y).
+#' @param seed \code{integer} seed for reproducibility.
+#' @param verbose A \code{logical} that determines whether the function prints progress reports as it runs (default = FALSE).
+#' @return A \code{list} with elements:
+#' \describe{
+#' \item{pi}{each variables stability}
+#' \item{metadata}{parameters and counts}
+#' }
+#' @author Lijuan Wang, Kira Noordwijk, Evan Jerome
+#' @export
+#' @examples
+#' \dontrun{
+#' stable <- stability(x = X, y = y, B = 50, resample = "bootstrap")
+#' stable <- stability(x = X, y = y, B = 40, resample = "subsample", m = 100, verbose = TRUE)
+#' }
+stability <- function(x, y, B = 50, resample = c("bootstrap","subsample"), m = NULL,
+                      build_args = list(K = NULL, eps = 1e-6, delta = 1, L = 50, family = "gaussian", keep_fits = FALSE),
+                      seed = NULL, verbose = FALSE) {
+  resample <- match.arg(resample)
+  x <- as.data.frame(x)
+  n <- nrow(x)
+  p <- ncol(x)
+  varnames <- colnames(x)
+  if (is.null(varnames)) varnames <- paste0("V", seq_len(p))
+
+  if (!is.numeric(B) || B < 1) stop("B must be positive integer")
+  B <- as.integer(B)
+
+  if (!is.null(seed)) set.seed(seed)
+
+  if (resample == "subsample" && is.null(m)) m <- floor(0.7 * n)
+  if (resample == "subsample"){
+    m <- as.integer(m)
+    if (m < 1 || m > n) stop("m must be between 1 and n")
+  }
+
+  # Initialize results matrix
+  z_matrix <- matrix(0, nrow = B, ncol = p)
+  colnames(z_matrix) <- varnames
+  failed_idx <- integer(0)
+  empty_models_idx <- integer(0)
+
+  for (b in seq_len(B)) {
+    # resample indices
+    if (resample == "bootstrap") {
+      idx <- sample.int(n, size = n, replace = TRUE)
+    } else {
+      idx <- sample.int(n, size = m, replace = FALSE)
+    }
+    xb <- x[idx, , drop = FALSE]
+    yb <- y[idx]
+
+    # handle y type for binomial
+    if (is.factor(yb)) yb <- as.numeric(yb) - 1
+    if (is.logical(yb)) yb <- as.integer(yb)
+
+    # skip if NA
+    if (any(is.na(xb)) || any(is.na(yb))){
+      failed_idx <- c(failed_idx, b)
+      next
+    }
+
+    args_bp <- c(list(x = xb, y = yb), build_args)
+    forest_b <- tryCatch({
+      do.call(build_paths, args_bp)
+    }, error = function(e){
+      failed_idx <<- c(failed_idx, b)
+      if (verbose) message(sprintf("build_paths error at resample %d: %s", b, e$message))
+      NULL
+    })
+
+    if (is.null(forest_b) || !("aic_by_model" %in% names(forest_b)) || nrow(forest_b$aic_by_model) == 0){
+      empty_models_idx <- c(empty_models_idx, b)
+      next
+    }
+
+    models_vars <- forest_b$aic_by_model$vars
+    models_vars <- lapply(models_vars, function(v) if (is.null(v)) character(0) else as.character(v))
+    n_models_b <- length(models_vars)
+    if(n_models_b == 0){
+      empty_models_idx <- c(empty_models_idx, b)
+      next
+    }
+
+    # compute variable presence proportion
+    z_matrix[b, ] <- vapply(varnames, function(vj) sum(vapply(models_vars, function(v) vj %in% v, integer(1))) / n_models_b, numeric(1))
+
+    if (verbose && B > 10 && b %% 10 == 0) message(sprintf("Completed %d / %d resample", b, B))
+  }
+
+  pi <- colMeans(z_matrix, na.rm = TRUE)
+  names(pi) <- varnames
+  B_successful <- sum(rowSums(z_matrix, na.rm = TRUE) > 0)
+
+  result <- list(
+    pi = pi,
+    resampling = list(
+      B_attempted = B,
+      B_successful = B_successful,
+      failed_idx = sort(unique(failed_idx)),
+      empty_models_idx = sort(unique(empty_models_idx)),
+      type = resample,
+      m = if (resample == "subsample") m else NULL,
+      build_paths_args = build_args
+    ),
+    z_matrix = z_matrix
+  )
+
+  class(result) <- "path_stability"
+  return(result)
+}
+

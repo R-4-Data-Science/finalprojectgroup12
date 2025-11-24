@@ -4,7 +4,7 @@ author: "Lijuan Wang, Evan Jerome, Kira Noordwijk"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Diabetes progression with multi-path model selection}
+  %\VignetteIndexEntry{Multi-path Model Selection for Diabetes Progression}
   %\VignetteEngine{knitr::rmarkdown}
   \usepackage[utf8]{inputenc}
 ---
@@ -114,7 +114,7 @@ X_train <- X[train_idx, ]
 y_train <- y[train_idx]
 
 X_test  <- X[-train_idx, ]
-y_test  <- y[-train_idx, ]
+y_test  <- y[-train_idx]
 
 c(n_train = nrow(X_train), n_test = nrow(X_test))
 
@@ -164,9 +164,15 @@ stab <- stability(
   y        = y_train,
   B        = 50,
   resample = "bootstrap",
-  family   = "gaussian",
-  K        = 10
+  build_args = list(
+    family = "gaussian",
+    K      = 10,
+    eps    = 1e-6,
+    delta  = 1,
+    L      = 50
+  )
 )
+
 
 stab_sorted <- sort(stab$pi, decreasing = TRUE)
 
@@ -177,27 +183,37 @@ head(stab_sorted)
 
 6. Plausible Model Set
 ```{r}
-## 06_plausible_models.R
-## Requires: forest, stab from previous scripts
-## Builds: plaus (plausible model set)
+## 06_plausible_models.R - Robust version
 
-# If running separately, uncomment:
-# library(finalprojectgroup12)
-# source("01_data.R")
-# source("02_features.R")
-# source("03_split.R")
-# source("04_multipath.R")
-# source("05_stability.R")
+# Initial parameters
+Delta_val <- 2
+tau_val   <- 0.6
 
-# Delta = 2: models within 2 AIC units of best
-# tau   = 0.6: variables selected in at least 60% of bootstraps
-plaus <- plausible_models(
-  forest,
-  pi    = stab$pi,
-  Delta = 2,
-  tau   = 0.6
-)
+# Attempt to generate plausible models
+plaus <- plausible_models(forest, pi = stab$pi, Delta = Delta_val, tau = tau_val)
 
+# Check if the result is empty
+if(nrow(plaus) == 0) {
+  message("Warning: plausible_models() returned an empty data frame.")
+  
+  # Optional: try relaxing the parameters
+  Delta_val <- 5   # increase AIC threshold
+  tau_val   <- 0.5 # decrease stability threshold
+  
+  message(paste("Retrying with Delta =", Delta_val, "and tau =", tau_val))
+  
+  plaus <- plausible_models(forest, pi = stab$pi, Delta = Delta_val, tau = tau_val)
+  
+  if(nrow(plaus) == 0) {
+    message("Still empty. Consider further relaxing Delta or tau, or check forest/stab inputs.")
+  } else {
+    message("Plausible models found with relaxed parameters.")
+  }
+} else {
+  message("Plausible models found with initial parameters.")
+}
+
+# Print the result
 plaus
 
 ```
@@ -205,23 +221,43 @@ plaus
 # 7. Test-set Performance Template
 ```{r}
 ## 07_test_performance.R
-## Requires: forest, X_test, y_test from previous scripts
+## Requires: forest, X_train, y_train, X_test, y_test
 
-# If running separately, uncomment:
-# library(finalprojectgroup12)
-# source("01_data.R")
-# source("02_features.R")
-# source("03_split.R")
-# source("04_multipath.R")
+# 1. Ensure X_train and X_test are data frames with correct column names
+X_train_df <- as.data.frame(X_train)
+X_test_df  <- as.data.frame(X_test)
 
-# Example template if forest stores a list of fitted models
-best_model_name <- forest$aic_by_model$model[1]
-best_fit        <- forest$models[[best_model_name]]
+# 2. Get the best model from forest
+best_model <- forest$models[[1]]  # first model in forest$models
 
-# Predict on the test set
-y_pred_test <- predict(best_fit, newdata = as.data.frame(X_test))
+# 3. Extract variables used in the model
+if (!is.null(best_model)) {
+  best_model_vars <- names(coef(best_model))[-1]  # remove intercept
+} else {
+  best_model_vars <- character(0)
+}
 
-# Compute test RMSE
+# 4. Construct formula for refitting
+if (length(best_model_vars) == 0) {
+  form <- y_train ~ 1  # intercept-only model if no variables selected
+} else {
+  # Keep only variables that exist in X_train_df
+  best_model_vars <- intersect(best_model_vars, colnames(X_train_df))
+  form <- as.formula(paste("y_train ~", paste(best_model_vars, collapse = " + ")))
+}
+
+# 5. Combine y_train with X_train_df for fitting
+train_df <- cbind(y_train = y_train, X_train_df)
+
+# 6. Refit the model
+best_fit <- lm(form, data = train_df)
+
+# 7. Predict on test set
+# Ensure test set has the same columns as training
+X_test_df <- X_test_df[, best_model_vars, drop = FALSE]  
+y_pred_test <- predict(best_fit, newdata = X_test_df)
+
+# 8. Compute test RMSE
 rmse_test <- sqrt(mean((y_test - y_pred_test)^2))
 rmse_test
 

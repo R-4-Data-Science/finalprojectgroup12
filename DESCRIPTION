@@ -1,18 +1,16 @@
 Package: finalprojectgroup12
-Title: Multi-Path Stepwise Selection for Linear and Logistic Models
+Title: Multi-Path Stepwise Selection with AIC
 Version: 0.0.0.9000
 Authors@R: 
-    person("Lijuan", "Wang", email = "liw0004@ auburn.edu", role = c("aut", "cre"))
+    person("Lijuan", "Wang", email = "liw0004@auburn.edu", role = c("aut", "cre"))
     person("Evan", "Jerome", email = "ezj0049@auburn.edu", role = c("aut", "cre"))
     person("Kira", "Noordwijk", email = "kjn0012@auburn.edu", role = c("aut", "cre"))
-Description: Implements multi-path forward stepwise selection for linear (Gaussian)
-  and logistic (binomial) models, including resampling-based stability estimation
-  and plausible model selection using AIC and stability metrics.
+Description: Implements multi-path forward selection, stability estimation, plausible model selection, and confusion metrics for R.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 VignetteBuilder: knitr
-
-
-
+Suggests: 
+    knitr,
+    rmarkdown

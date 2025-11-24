@@ -1,25 +1,24 @@
 #' @title Build multi-path forward selection using AIC
 #'
-#' @description A compact implementation of the multi-path forward selection described
-#' in the project specification. Starts from the empty model and at each
-#' step tries adding each unused variable to every current model, keeps
+#' @description Multi-path forward selection: start from empty model; at each
+#' step add each unused predictor to each current model, keep
 #' near-best children per parent within `delta` of the parent's best child,
-#' and requires improvement >= eps. Deduplicates and caps models per level by L.
+#' require improvement >= eps. Deduplicates and cap models per level by L.
 #'
 #' @param x A \code{data.frame} (matrix) of numerical predictors.
-#' @param y A \code{vector} of a numerical response.
+#' @param y A \code{vector} of a numerical response for gaussian; 0/1 or factor/logical for binomial.
 #' @param family A \code{string} containing what family distribution y follows. Must be gaussian or binomial.
-#' @param K A \code{numeric} used to denote the maximum number of steps (default min(p,10)).
+#' @param K A \code{numeric} minimum AIC improvement required to expand froma parent (default min(p,10)).
 #' @param eps A \code{numeric} used to denote the minimum AIC improvement to expand (default 1e-6).
 #' @param delta A \code{numeric} used to denote the AIC tolerance for near-ties (default 1).
 #' @param L A \code{numeric} used to denote the max number of models kept per level (default 50).
-#' @param keep_fits A \code{logical} that determines whether the function saves the model fit objects (default = TRUE).
+#' @param keep_fits A \code{logical} that determines whether the function saves the model fit objects (default = FALSE).
 #' @return A \code{list} with elements:
 #' \describe{
 #' \item{path_forest}{list of frontiers (each frontier is a list of model entries)}
 #' \item{aic_by_model}{data.frame of unique models and their AICs}
 #' \item{meta}{parameters and counts}
-#' \item{fits}{named list of fitted model objects (may be many)}
+#' \item{fits}{named list of fits if keep_fits = FALSE, otherwise NULL}
 #' }
 #' @author Lijuan Wang, Kira Noordwijk, Evan Jerome
 #' @export
@@ -30,12 +29,21 @@
 #' }
 build_paths <- function(x, y, family = c("gaussian","binomial"),
                         K = NULL, eps = 1e-6, delta = 1, L = 50,
-                        keep_fits = TRUE) {
+                        keep_fits = FALSE) {
   family <- match.arg(family)
   x <- as.data.frame(x)
-  n <- nrow(x); p <- ncol(x)
+  n <- nrow(x)
+  p <- ncol(x)
   if (is.null(K)) K <- min(p, 10)
   K <- min(K, p)
+
+  # basic checks
+  if (any(is.na(x)) || any(is.na(y))){
+    stop("x and y must not contain NA. Please handle missing values before calling build_paths().")
+  }
+  if (!all(sapply(x, is.numeric))){
+    stop("All columns in x must be numeric.")
+  }
 
   varnames <- colnames(x)
   if (is.null(varnames) || any(nchar(varnames) == 0)) {
@@ -48,15 +56,18 @@ build_paths <- function(x, y, family = c("gaussian","binomial"),
     if (is.factor(y) && nlevels(y) != 2) stop("For binomial family, y must have 2 levels.")
     if (is.numeric(y) && !all(y %in% c(0,1))) stop("Numeric y for binomial must be 0/1.")
     if (!is.numeric(y) && !is.logical(y) && !is.factor(y)) stop("y must be numeric 0/1, logical, or a factor for binomial family.")
+    if (is.factor(y)) y <- as.numeric(y) -1
+    if (is.logical(y)) y <- as.integer(y)
   }
 
-  # Construct data.frame once to avoid reconstruction every time it is fit
+
+  # build data once
   data_df <- data.frame(y = y, x, check.names = FALSE)
 
-  # helper: fit model by variable set and compute AIC; returns list(fit,aic)
+  # fit model and returns list(fit,aic)
   fit_aic <- function(vars) {
     if (length(vars) == 0) {
-      form <- as.formula("y ~ 1")
+      form <- stats::as.formula("y ~ 1")
     } else {
       form <- stats::reformulate(vars, response = "y")
     }
@@ -68,52 +79,57 @@ build_paths <- function(x, y, family = c("gaussian","binomial"),
     return(list(fit = f, aic = stats::AIC(f)))
   }
 
+  # deterministic unique key for a given variable set (order-insensitive)
   model_key <- function(vars) {
     if (length(vars) == 0) return("<NULL>")
     paste(sort(vars), collapse = "||")
   }
 
-  # store all unique models to avoid refit
+  # env cache to avoid refitting the same model multiple times
   all_models <- new.env(parent = emptyenv())
 
-  # create entry and cache
+  # fetch or compute entry; only save fit if keep_fits TRUE
   get_entry <- function(vars) {
     key <- model_key(vars)
     if (exists(key, envir = all_models, inherits = FALSE)) {
       return(get(key, envir = all_models, inherits = FALSE))
     } else {
       fa <- fit_aic(vars)
-      entry <- list(vars = sort(vars), key = key, aic = fa$aic, fit = fa$fit)
+      # build entry (do not always include fit)
+      entry <- list(vars = sort(vars), key = key, aic = fa$aic)
+      if (keep_fits) entry$fit <- fa$fit
       assign(key, entry, envir = all_models)
       return(entry)
     }
   }
 
-  # initial frontier: empty model
+  # initialize
   root <- get_entry(character(0))
   frontier <- list(root)
   path_forest <- list(frontier)
 
+  # main mulri-path search loop
   for (step in seq_len(K)) {
     candidates <- list()
 
-    # For each parent in frontier, try adding every remaining variable
+    # for each parent in frontier, try adding every remaining variable
     for (parent in frontier) {
       used <- parent$vars
       remaining <- setdiff(varnames, used)
       if (length(remaining) == 0) next
 
-      # create children
+      # children from this parent
       children <- lapply(remaining, function(v) {
         vars <- c(used, v)
-        get_entry(vars)
+        e <- get_entry(vars)
+        # attach parent info for traceability at this level( not saved back to cache)
+        e$parent_key <- parent$key
+        e
       })
 
-      # compute AICs and select those within delta of best child provided improvement >= eps
       child_aics <- sapply(children, `[[`, "aic")
       best_child_aic <- min(child_aics)
       improvement <- parent$aic - best_child_aic
-      # require best child improves over parent by at least eps
       if (improvement < eps) next
       keep_idx <- which(child_aics <= (best_child_aic + delta))
       if (length(keep_idx) > 0) {
@@ -121,9 +137,10 @@ build_paths <- function(x, y, family = c("gaussian","binomial"),
         candidates <- c(candidates, kept)
       }
     }
+
     if (length(candidates) == 0) break
 
-    # deduplicate candidates by key, keep best aic per key
+    # dedupe candidates by key, keep best aic per key
     keys <- sapply(candidates, `[[`, "key")
     uniq_keys <- unique(keys)
     uniq_cands <- lapply(uniq_keys, function(k) {
@@ -134,11 +151,12 @@ build_paths <- function(x, y, family = c("gaussian","binomial"),
     # sort by aic and cap by L
     uniq_cands <- uniq_cands[order(sapply(uniq_cands, `[[`, "aic"))]
     if (length(uniq_cands) > L) uniq_cands <- uniq_cands[1:L]
+
     frontier <- uniq_cands
     path_forest[[length(path_forest) + 1]] <- frontier
   }
 
-  # collect all models from env into data.frame
+  # collect catched models from env into aic_by_model
   all_keys <- ls(envir = all_models)
   aic_list <- lapply(all_keys, function(k) {
     e <- get(k, envir = all_models)
@@ -146,16 +164,16 @@ build_paths <- function(x, y, family = c("gaussian","binomial"),
   })
   aic_by_model <- if (length(aic_list) > 0) do.call(rbind, aic_list) else data.frame()
 
-  # attach vars as list-column and (optionally) fits as named list
+  # vars list and fits list
   vars_list <- lapply(all_keys, function(k) get(k, envir = all_models)$vars)
   fits_list <- NULL
   if (keep_fits) {
     fits_list <- lapply(all_keys, function(k) get(k, envir = all_models)$fit)
     names(fits_list) <- all_keys
   }
-  aic_by_model$vars <- I(vars_list)
+  if (nrow(aic_by_model) > 0) aic_by_model$vars <- I(vars_list)
 
-  # add formula column (可读性更好) and sort by AIC
+  # formula and sort by aic
   if (nrow(aic_by_model) > 0) {
     aic_by_model$formula <- sapply(all_keys, function(k) {
       vars <- get(k, envir = all_models)$vars
@@ -166,8 +184,10 @@ build_paths <- function(x, y, family = c("gaussian","binomial"),
   }
 
   meta <- list(params = list(K = K, eps = eps, delta = delta, L = L, family = family),
-               n_models = length(all_keys), p = p,
-               aic_min = if (nrow(aic_by_model) > 0) min(aic_by_model$aic) else NA)
+               n_models = length(all_keys),
+               p = p,
+               aic_min = if (nrow(aic_by_model) > 0) min(aic_by_model$aic) else NA,
+               n_steps = length(path_forest) - 1)
 
   class_out <- list(path_forest = path_forest,
                     aic_by_model = aic_by_model,

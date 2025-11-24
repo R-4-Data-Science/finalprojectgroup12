@@ -1,5 +1,5 @@
 ---
-title: "Multi-path Model Selection for Breast Cancer"
+title: "Breast Cancer with multi-path Model Selection"
 author: "Lijuan Wang, Evan Jerome, Kira Noordwijk"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
@@ -25,29 +25,22 @@ knitr::opts_chunk$set(
 # 1. Import Data: Diabetes Progression
 ```{r}
 ## 01_data_logistic.R
-## Load data and create X_base, y
-
-library(finalprojectgroup12)
+# Load classic Wisconsin Breast Cancer data (mlbench::BreastCancer)
 library(mlbench)
-
-set.seed(123)
-
-# Load classic Wisconsin Breast Cancer data
 data("BreastCancer")
-
-# Remove rows with missing values
 bc <- na.omit(BreastCancer)
 
 # Outcome: malignant = 1, benign = 0
 y <- ifelse(bc$Class == "malignant", 1, 0)
 
-# Drop ID column and response
-X_base <- bc[, 2:10]
-X_base <- data.frame(lapply(X_base, as.numeric))
+# Drop ID and Class columns, convert rest to numeric
+X_base <- bc[, setdiff(names(bc), c("Id", "Class"))]
+# Force numeric conversion (some columns may be factors/characters)
+X_base <- as.data.frame(lapply(X_base, function(col) as.numeric(as.character(col))))
+rownames(X_base) <- NULL
 
 n <- nrow(X_base)
 p_base <- ncol(X_base)
-
 n
 p_base
 
@@ -134,9 +127,11 @@ forest_bin <- build_paths(
   K      = 5,
   eps    = 1e-6,
   delta  = 1,
-  L      = 50
+  L      = 50,
+  keep_fits = TRUE   
 )
 
+# Show top 5 by AIC
 head(forest_bin$aic_by_model, 5)
 
 ```
@@ -152,16 +147,22 @@ head(forest_bin$aic_by_model, 5)
 # source("03_split_logistic.R")
 
 stab_bin <- stability(
-  x        = X_train,
-  y        = y_train,
-  B        = 50,
+  x = X_train,
+  y = y_train,
+  B = 50,                 
   resample = "bootstrap",
-  family   = "binomial",
-  K        = 5
+  build_args = list(
+    family = "binomial",
+    K = 5,
+    eps = 1e-6,
+    delta = 1,
+    L = 50,
+    keep_fits = FALSE     
+  )
 )
 
+# inspect top stabilities
 stab_bin_sorted <- sort(stab_bin$pi, decreasing = TRUE)
-
 head(stab_bin_sorted)
 
 ```
@@ -193,10 +194,16 @@ plaus_bin
 # source("03_split_logistic.R")
 
 # Select best model
-best_model_name <- forest_bin$aic_by_model$model[1]
-best_fit        <- forest_bin$models[[best_model_name]]
+best_key <- rownames(forest_bin$aic_by_model)[1]
+# get fit
+if (!is.null(forest_bin$fits) && best_key %in% names(forest_bin$fits)){
+  best_fit <- forest_bin$fits[[best_key]]
+}else{
+  stop("No fitted model found in forest_bin$fits.")
+}
 
-# Predicted probabilities and class predictions
+
+# Predictions on test set
 prob_test <- predict(best_fit, newdata = as.data.frame(X_test), type = "response")
 pred_test <- ifelse(prob_test >= 0.5, 1, 0)
 
@@ -213,10 +220,10 @@ conf_mat
 
 # Metrics
 accuracy    <- (TP + TN) / (TP + TN + FP + FN)
-sensitivity <- TP / (TP + FN)
-specificity <- TN / (TN + FP)
-FDR         <- FP / (FP + TP)
-DOR         <- (TP / FN) / (FP / TN)
+sensitivity <- if((TP + FN) == 0) NA else TP / (TP + FN)
+specificity <- if((TN + FP) == 0) NA else TN / (TN + FP)
+FDR         <- if((FP + TP) == 0) NA else FP / (FP + TP)
+DOR         <- if(FP*FN == 0) NA else (TP / FN) / (FP / TN)
 
 list(
   accuracy    = accuracy,

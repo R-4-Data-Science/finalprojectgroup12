@@ -1,0 +1,104 @@
+---
+title: "Multi-Path Stepwise Selection Demonstration"
+author: "Lijuan Wang, Evan Jerome, Kira Noordwijk"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+# Abstract
+
+This HTML report demonstrates the `finalprojectgroup12` package implementing multi-path forward stepwise selection, resampling-based stability estimation, and plausible model selection. We show examples for both Gaussian (linear) and Binomial (logistic) data.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(finalprojectgroup12)
+library(knitr)
+set.seed(123)
+```
+
+
+# 1. Linear Regression Example (Gaussian)
+
+```{r}
+# simulate data
+n <- 80
+p <- 6
+X <- matrix(rnorm(n*p), n, p)
+colnames(X) <- paste0("x", 1:p)
+beta <- c(1.5, -1, 0, 0, 0.8, 0)
+y <- as.numeric(X %*% beta + rnorm(n))
+
+# multi-path forward selection
+forest <- build_paths(x = X, y = y, family = "gaussian", K = 6, eps = 1e-6, delta = 1, L = 50)
+
+# show top 5 models by aic
+kable(head(forest$aic_by_model, 5), caption = "Top 5 linear models by AIC", format = "html")
+
+# stability estimation
+stab <- stability(x = X, y = y, B = 20, 
+                  build_args = list( K = 6, eps = 1e-6, delta = 1, L = 50, family = "gaussian"))
+stab_sorted <- sort(stab$pi, decreasing = TRUE)
+kable(data.frame(variable = names(stab_sorted), stability = stab_sorted), caption = "Variable stability (linear)",format = "html")
+
+# plausible models
+plaus <- plausible_models(forest, pi = stab$pi, Delta = 2, tau = 0.4)
+kable(plaus, caption = "Plausible linear models", format = "html")
+
+# visualize 
+barplot(stab$pi, main="Variable Stability(Linear)", col="steelblue",las=2)
+```
+
+# 2. Logistic Regression Example (Binomial)
+
+```{r}
+# simulate binary classification data
+n <- 100 
+p <- 5
+Xb <- matrix(rnorm(n*p), n, p)
+linpred <- 1*Xb[,1] - 1.2*Xb[,2] + 0.8*Xb[,4]
+prob <- 1 / (1 + exp(-linpred))
+ybin <- rbinom(n, 1, prob)
+colnames(Xb) <- paste0("x", 1:p)
+
+# multi-path forward selection
+forest_bin <- build_paths(x = Xb, y = ybin, family = "binomial", K = 5, eps = 1e-6, delta = 1, L = 50)
+
+# show top 5 logistic models by AIC
+kable(head(forest_bin$aic_by_model, 5), caption = "Top 5 logistic models by AIC",format = "html")
+
+# stability estimation
+stab_bin <- stability( x= Xb, y = ybin, B = 20, 
+                  build_args = list( K = 5, eps = 1e-6, delta = 1, L = 50, family = "binomial"))
+stab_bin_sorted <- sort(stab_bin$pi, decreasing = TRUE)
+kable(data.frame(variable = names(stab_bin_sorted), stability = stab_bin_sorted), caption = "Variable stability (logistic)",format = "html")
+
+
+# plausible models
+plaus_bin <- plausible_models(forest_bin, pi = stab_bin$pi, Delta = 2, tau = 0.4)
+kable(plaus_bin, caption = "Plausible logistic models", format = "html")
+
+# visualize
+barplot(stab_bin$pi, main="Variable Stability(Logistic)", col="salmon",las=2)
+
+# confusion metrics for top plausible model
+dfb <- data.frame(y = ybin, Xb)
+top_model_vars <- plaus_bin$vars[[1]]
+fit <- glm(as.formula(paste("y ~", paste(top_model_vars, collapse = "+"))),
+           data = dfb, family = binomial())
+cm <- confusion_metrics(fit,y_true = dfb$y, cutoff = 0.5)
+cm
+```
+
+## Summary
+This report shows a complete workflow:
+
+ 1. Build a multi-path model forest.
+ 2. Estimate stability of each variable across resamples.
+ 3. Select plausible models based on AIC and average stability.
+ 4. Visualize variable stability to guide interpretation.
+ 
+The same workflow can be applied to real datasets for linear or logistic regression modeling.
+
