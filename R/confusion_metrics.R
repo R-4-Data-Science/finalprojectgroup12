@@ -23,9 +23,11 @@
 #' fit <- glm(y ~ x1 + x2, family = binomial, data = df)
 #' confusion_metrics(fit, y_true = df$y, cutoff = 0.5)
 #' }
-confusion_metrics <- function(fit, y_true, cutoff = 0.5) {
+confusion_metrics <- function(fit, y_true = NULL, cutoff = 0.5) {
   if (!inherits(fit, "glm") || family(fit)$family != "binomial")
     stop("fit must be a logistic regression glm object")
+
+  if (is.null(y_true)) y_true <- fit$y  # 默认使用 fit 内部 y
 
   if (length(y_true) != length(fitted(fit)))
     stop("y_true must have same length as fitted values")
@@ -55,3 +57,5 @@ confusion_metrics <- function(fit, y_true, cutoff = 0.5) {
     DOR = DOR
   )
 }
+
+

@@ -197,7 +197,7 @@ if(nrow(plaus) == 0) {
   message("Warning: plausible_models() returned an empty data frame.")
   
   # Optional: try relaxing the parameters
-  Delta_val <- 5   # increase AIC threshold
+  Delta_val <- 10   # increase AIC threshold
   tau_val   <- 0.5 # decrease stability threshold
   
   message(paste("Retrying with Delta =", Delta_val, "and tau =", tau_val))
