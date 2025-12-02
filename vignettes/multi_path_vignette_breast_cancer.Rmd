@@ -6,41 +6,52 @@ output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Breast Cancer with multi-path model selection}
   %\VignetteEngine{knitr::rmarkdown}
-  \usepackage[utf8]{inputenc}
+encoding: UTF-8
 ---
 
 ```{r setup, include = FALSE}
 library(finalprojectgroup12)
-library(care)    # for the Wisconsin Breast Cancer data
+library(care) # for the Wisconsin Breast Cancer data (if needed elsewhere)
+library(mlbench) # for BreastCancer data
 library(knitr)
-
 set.seed(123)
 knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>",
-  echo = TRUE
+collapse = TRUE,
+comment = "#>",
+echo = TRUE
 )
 ```
 
-# 1. Import Data: Diabetes Progression
+# 1. Import Data: Breast Cancer Progression
 ```{r}
 ## 01_data_logistic.R
+
 # Load classic Wisconsin Breast Cancer data (mlbench::BreastCancer)
-library(mlbench)
+
 data("BreastCancer")
 bc <- na.omit(BreastCancer)
 
 # Outcome: malignant = 1, benign = 0
+
 y <- ifelse(bc$Class == "malignant", 1, 0)
 
-# Drop ID and Class columns, convert rest to numeric
-X_base <- bc[, setdiff(names(bc), c("Id", "Class"))]
-# Force numeric conversion (some columns may be factors/characters)
-X_base <- as.data.frame(lapply(X_base, function(col) as.numeric(as.character(col))))
+# Drop ID and Class columns, convert predictors to numeric
+
+X_base_raw <- bc[, setdiff(names(bc), c("Id", "Class"))]
+
+X_base_raw <- as.data.frame(
+lapply(X_base_raw, function(col) as.numeric(as.character(col)))
+)
+
+# Standardize predictors (mean 0, sd 1) to stabilize numerical behavior
+
+X_base <- as.data.frame(scale(X_base_raw))
+
 rownames(X_base) <- NULL
 
-n <- nrow(X_base)
+n      <- nrow(X_base)
 p_base <- ncol(X_base)
+
 n
 p_base
 
@@ -49,35 +60,38 @@ p_base
 # 2. Feature Engineering: Second-order Terms
 ```{r}
 ## 02_features_logistic.R
+
 ## Requires X_base, p_base, n
+
 ## Builds X (expanded features)
 
-# If running separately:
-# source("01_data_logistic.R")
-
 # Linear terms
+
 X_lin <- X_base
 
 # Quadratic terms
+
 X_quad <- X_base^2
 colnames(X_quad) <- paste0(colnames(X_base), "^2")
 
 # Pairwise interactions
-num_int <- p_base * (p_base - 1) / 2
-X_int <- matrix(NA_real_, nrow = n, ncol = num_int)
+
+num_int   <- p_base * (p_base - 1) / 2
+X_int     <- matrix(NA_real_, nrow = n, ncol = num_int)
 int_names <- character(num_int)
 
 k <- 1
 for (i in 1:(p_base - 1)) {
-  for (j in (i + 1):p_base) {
-    X_int[, k] <- X_base[, i] * X_base[, j]
-    int_names[k] <- paste0(colnames(X_base)[i], ":", colnames(X_base)[j])
-    k <- k + 1
-  }
+for (j in (i + 1):p_base) {
+X_int[, k]   <- X_base[, i] * X_base[, j]
+int_names[k] <- paste0(colnames(X_base)[i], ":", colnames(X_base)[j])
+k <- k + 1
+}
 }
 colnames(X_int) <- int_names
 
 # Full matrix
+
 X <- cbind(X_lin, X_quad, X_int)
 
 dim(X)
@@ -89,14 +103,10 @@ dim(X)
 ## 03_split_logistic.R
 ## Builds X_train, y_train, X_test, y_test
 
-# If running separately:
-# source("01_data_logistic.R")
-# source("02_features_logistic.R")
-
 set.seed(123)
 
 train_frac <- 0.7
-n_train <- floor(train_frac * n)
+n_train    <- floor(train_frac * n)
 
 train_idx <- sample(seq_len(n), size = n_train)
 
@@ -104,9 +114,19 @@ X_train <- X[train_idx, ]
 y_train <- y[train_idx]
 
 X_test  <- X[-train_idx, ]
-y_test  <- y[-train_idx]
+y_test  <- y[-train_idx]   # <-- Corrected earlier
 
 c(n_train = nrow(X_train), n_test = nrow(X_test))
+
+## 03b_reduced_features_logistic.R
+# Use a reduced feature set for faster, more stable fits in the vignette
+
+max_features <- min(30, ncol(X_train))
+
+X_train_model <- X_train[, 1:max_features, drop = FALSE]
+X_test_model  <- X_test[,  1:max_features, drop = FALSE]
+
+dim(X_train_model)
 
 ```
 
@@ -115,23 +135,30 @@ c(n_train = nrow(X_train), n_test = nrow(X_test))
 ## 04_multipath_logistic.R
 
 # If running separately:
+
 # library(finalprojectgroup12)
+
 # source("01_data_logistic.R")
+
 # source("02_features_logistic.R")
+
 # source("03_split_logistic.R")
 
-forest_bin <- build_paths(
-  x      = X_train,
-  y      = y_train,
-  family = "binomial",
-  K      = 5,
-  eps    = 1e-6,
-  delta  = 1,
-  L      = 50,
-  keep_fits = TRUE   
+forest_bin <- suppressWarnings(
+  build_paths(
+    x         = X_train,   # <- was X_train_model
+    y         = y_train,
+    family    = "binomial",
+    K         = 5,
+    eps       = 1e-6,
+    delta     = 1,
+    L         = 30,
+    keep_fits = TRUE
+  )
 )
 
 # Show top 5 by AIC
+
 head(forest_bin$aic_by_model, 5)
 
 ```
@@ -146,43 +173,55 @@ head(forest_bin$aic_by_model, 5)
 # source("02_features_logistic.R")
 # source("03_split_logistic.R")
 
-stab_bin <- stability(
-  x = X_train,
-  y = y_train,
-  B = 50,                 
-  resample = "bootstrap",
-  build_args = list(
-    family = "binomial",
-    K = 5,
-    eps = 1e-6,
-    delta = 1,
-    L = 50,
-    keep_fits = FALSE     
+stab_bin <- suppressWarnings(
+  stability(
+    x        = X_train,   # <- was X_train_model
+    y        = y_train,
+    B        = 10,
+    resample = "bootstrap",
+    build_args = list(
+      family    = "binomial",
+      K         = 5,
+      eps       = 1e-6,
+      delta     = 1,
+      L         = 30,
+      keep_fits = FALSE
+    )
   )
 )
 
-# inspect top stabilities
+# Inspect top stabilities
 stab_bin_sorted <- sort(stab_bin$pi, decreasing = TRUE)
 head(stab_bin_sorted)
+
 
 ```
 
 6. Plausible Model Set
 ```{r}
-## 06_plausible_models_logistic.R
+# 6. Plausible Model Set
 
 # If running separately:
 # source("04_multipath_logistic.R")
 # source("05_stability_logistic.R")
 
+# Quick diagnostics: how many variables pass a looser stability threshold?
+sum(stab_bin$pi >= 0.3)
+sort(stab_bin$pi, decreasing = TRUE)[1:10]
+
+# Construct a plausible model set with relaxed thresholds:
+# - Delta = 10: allow models within 10 AIC units of the best
+# - tau   = 0.3: require variables to appear with at least 30% stability
 plaus_bin <- plausible_models(
   forest_bin,
   pi    = stab_bin$pi,
-  Delta = 2,      # logistic AIC rule still OK
-  tau   = 0.6     # variables with ≥60% stability
+  Delta = 10,
+  tau   = 0.3
 )
 
 plaus_bin
+
+
 ```
 
 # 7. Test-set Performance Template
@@ -190,47 +229,58 @@ plaus_bin
 ## 07_performance_logistic.R
 
 # If running separately:
+
 # source("04_multipath_logistic.R")
+
 # source("03_split_logistic.R")
 
 # Select best model
+
 best_key <- rownames(forest_bin$aic_by_model)[1]
-# get fit
-if (!is.null(forest_bin$fits) && best_key %in% names(forest_bin$fits)){
-  best_fit <- forest_bin$fits[[best_key]]
-}else{
-  stop("No fitted model found in forest_bin$fits.")
+
+# Get fit
+
+if (!is.null(forest_bin$fits) && best_key %in% names(forest_bin$fits)) {
+best_fit <- forest_bin$fits[[best_key]]
+} else {
+stop("No fitted model found in forest_bin$fits.")
 }
 
-
 # Predictions on test set
+
 prob_test <- predict(best_fit, newdata = as.data.frame(X_test), type = "response")
 pred_test <- ifelse(prob_test >= 0.5, 1, 0)
 
 # Confusion matrix elements
+
 TP <- sum(pred_test == 1 & y_test == 1)
 TN <- sum(pred_test == 0 & y_test == 0)
 FP <- sum(pred_test == 1 & y_test == 0)
 FN <- sum(pred_test == 0 & y_test == 1)
 
-conf_mat <- matrix(c(TP, FP, FN, TN), nrow = 2, byrow = TRUE,
-                   dimnames = list(c("Pred 1","Pred 0"), c("True 1","True 0")))
+conf_mat <- matrix(
+c(TP, FP, FN, TN),
+nrow = 2,
+byrow = TRUE,
+dimnames = list(c("Pred 1", "Pred 0"), c("True 1", "True 0"))
+)
 
 conf_mat
 
 # Metrics
+
 accuracy    <- (TP + TN) / (TP + TN + FP + FN)
-sensitivity <- if((TP + FN) == 0) NA else TP / (TP + FN)
-specificity <- if((TN + FP) == 0) NA else TN / (TN + FP)
-FDR         <- if((FP + TP) == 0) NA else FP / (FP + TP)
-DOR         <- if(FP*FN == 0) NA else (TP / FN) / (FP / TN)
+sensitivity <- if ((TP + FN) == 0) NA else TP / (TP + FN)
+specificity <- if ((TN + FP) == 0) NA else TN / (TN + FP)
+FDR         <- if ((FP + TP) == 0) NA else FP / (FP + TP)
+DOR         <- if (FP * FN == 0)   NA else (TP / FN) / (FP / TN)
 
 list(
-  accuracy    = accuracy,
-  sensitivity = sensitivity,
-  specificity = specificity,
-  FDR         = FDR,
-  DOR         = DOR
+accuracy    = accuracy,
+sensitivity = sensitivity,
+specificity = specificity,
+FDR         = FDR,
+DOR         = DOR
 )
 
 ```
