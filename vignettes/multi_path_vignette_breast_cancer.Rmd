@@ -22,7 +22,7 @@ echo = TRUE
 )
 ```
 
-# 1. Import Data: Diabetes Progression
+# 1. Import Data: Breast Cancer Progression
 ```{r}
 ## 01_data_logistic.R
 
