@@ -12,7 +12,8 @@ build_paths(
   eps = 1e-06,
   delta = 1,
   L = 50,
-  keep_fits = FALSE
+  keep_fits = FALSE,
+  trace = FALSE
 )
 }
 \arguments{
@@ -22,7 +23,7 @@ build_paths(
 
 \item{family}{A \code{string} containing what family distribution y follows. Must be gaussian or binomial.}
 
-\item{K}{A \code{numeric} minimum AIC improvement required to expand froma parent (default min(p,10)).}
+\item{K}{A \code{numeric} maximum number of forward-selection steps (default min(p,10)).}
 
 \item{eps}{A \code{numeric} used to denote the minimum AIC improvement to expand (default 1e-6).}
 
@@ -31,6 +32,8 @@ build_paths(
 \item{L}{A \code{numeric} used to denote the max number of models kept per level (default 50).}
 
 \item{keep_fits}{A \code{logical} that determines whether the function saves the model fit objects (default = FALSE).}
+
+\item{trace}{A \code{logical} whether to print light progress messages (default FALSE).}
 }
 \value{
 A \code{list} with elements:
@@ -38,7 +41,7 @@ A \code{list} with elements:
 \item{path_forest}{list of frontiers (each frontier is a list of model entries)}
 \item{aic_by_model}{data.frame of unique models and their AICs}
 \item{meta}{parameters and counts}
-\item{fits}{named list of fits if keep_fits = FALSE, otherwise NULL}
+\item{fits}{named list of fits if keep_fits = TRUE, otherwise NULL}
 }
 }
 \description{

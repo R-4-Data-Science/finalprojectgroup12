@@ -4,7 +4,7 @@
 \alias{confusion_metrics}
 \title{Compute confusion metrics for logistic regression models}
 \usage{
-confusion_metrics(fit, y_true, cutoff = 0.5)
+confusion_metrics(fit, y_true = NULL, cutoff = 0.5)
 }
 \arguments{
 \item{fit}{A \code{glm} object with family = binomial (logistic regression)}
