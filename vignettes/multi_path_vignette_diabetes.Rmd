@@ -261,59 +261,62 @@ plaus
 ```{r}
 
 ## 07_test_performance.R
-## Requires: forest, X_train_model, y_train, X_test_model, y_test
+## Requires: stab, X_train_model, y_train, X_test_model, y_test
 
-# 1. Ensure training and test matrices are data frames
+# 1. Make sure design matrices are data frames
 X_train_df <- as.data.frame(X_train_model)
 X_test_df  <- as.data.frame(X_test_model)
 
-# 2. Pick the best model by AIC
-best_idx <- which.min(forest$aic_by_model$AIC)
+# 2. Choose variables based on stability, not AIC
+#    First, try a threshold; if nothing passes, fall back to top 5
+tau_perf <- 0.3
 
-# forest$models is assumed to be a list of fitted lm objects
-best_model <- forest$models[[best_idx]]
+stable_vars <- names(stab$pi[stab$pi >= tau_perf])
 
-if (is.null(best_model)) {
-  stop("Best model object is NULL in forest$models.")
+if (length(stable_vars) == 0) {
+  # Fall back to top 5 most stable variables
+  stab_sorted <- sort(stab$pi, decreasing = TRUE)
+  stable_vars <- names(head(stab_sorted, 5))
 }
 
-# 3. Extract variable names (drop intercept)
-best_model_vars <- names(coef(best_model))
-best_model_vars <- setdiff(best_model_vars, "(Intercept)")
+# Keep only variables actually present in the reduced design matrix
+stable_vars <- intersect(stable_vars, colnames(X_train_df))
 
-# Keep only variables that actually exist in X_train_df
-best_model_vars <- intersect(best_model_vars, colnames(X_train_df))
+stable_vars
 
-# 4. Construct formula for refitting
-if (length(best_model_vars) == 0) {
-  form <- y_train ~ 1  # intercept-only model if no variables selected
+# 3. Build formula
+if (length(stable_vars) == 0) {
+  form <- y_train ~ 1   # intercept-only model if no variables selected
 } else {
-  form <- as.formula(paste("y_train ~", paste(best_model_vars, collapse = " + ")))
+  form <- as.formula(paste("y_train ~", paste(stable_vars, collapse = " + ")))
 }
 
-# 5. Combine y_train with X_train_df for fitting
+form
+
+# 4. Combine y and X for training
 train_df <- cbind(y_train = y_train, X_train_df)
 
-# 6. Refit the model on the full training data
+# 5. Fit the model
 best_fit <- lm(form, data = train_df)
 
-# 7. Prepare test data with the same predictors
-if (length(best_model_vars) == 0) {
-  test_df <- data.frame(X_test_df)[, 0, drop = FALSE]  # no predictors
+# 6. Prepare test data with same predictors
+if (length(stable_vars) == 0) {
+  test_df <- X_test_df[, 0, drop = FALSE]  # no predictors
 } else {
-  test_df <- X_test_df[, best_model_vars, drop = FALSE]
+  test_df <- X_test_df[, stable_vars, drop = FALSE]
 }
 
-# 8. Predict on test set
+# 7. Predict on test set
 y_pred_test <- predict(best_fit, newdata = test_df)
 
-# 9. Compute test RMSE
+# 8. Compute test RMSE
 rmse_test <- sqrt(mean((y_test - y_pred_test)^2))
 
 list(
-  best_model_index = best_idx,
-  selected_vars    = best_model_vars,
-  rmse_test        = rmse_test
+  selected_vars = stable_vars,
+  rmse_test     = rmse_test
 )
 
+
 ```
+
