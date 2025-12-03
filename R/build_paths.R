@@ -52,13 +52,21 @@ build_paths <- function(x, y, family = c("gaussian","binomial"),
     varnames <- colnames(x)
   }
 
-  if (length(y) != n) stop("Length of y must equal number of rows in x.")
   if (family == "binomial") {
-    if (is.factor(y) && nlevels(y) != 2) stop("For binomial family, y must have 2 levels.")
-    if (is.numeric(y) && !all(y %in% c(0,1))) stop("Numeric y for binomial must be 0/1.")
-    if (!is.numeric(y) && !is.logical(y) && !is.factor(y)) stop("y must be numeric 0/1, logical, or a factor for binomial family.")
-    if (is.factor(y)) y <- as.numeric(y) - 1
-    if (is.logical(y)) y <- as.integer(y)
+    if (is.factor(y)) {
+      if (nlevels(y) != 2)
+        stop("For binomial family, y must have exactly 2 levels.")
+      # Explicitly map the LAST factor level to 1, first to 0
+      lv <- levels(y)
+      y <- as.integer(y == lv[2])
+    }
+    if (is.logical(y)) {
+      y <- as.integer(y)
+    }
+    if (is.numeric(y)) {
+      if (!all(y %in% c(0,1)))
+        stop("Numeric y for binomial must be only 0/1.")
+    }
   }
 
   # build data once
