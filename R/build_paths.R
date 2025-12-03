@@ -79,19 +79,28 @@ build_paths <- function(x, y, family = c("gaussian","binomial"),
     } else {
       form <- stats::reformulate(vars, response = "y")
     }
+
+    warn_msg <- NULL
     res <- tryCatch({
-      if (family == "gaussian") {
-        f <- stats::lm(form, data = data_df)
-      } else {
-        f <- stats::glm(form, data = data_df, family = stats::binomial(), control = stats::glm.control(maxit = 50))
-      }
-      list(fit = f, aic = stats::AIC(f), error = NULL, warning = NULL)
-    }, warning = function(w) {
-      # record warning and return Inf aic to avoid using unstable fit
-      list(fit = NULL, aic = Inf, error = NULL, warning = conditionMessage(w))
+      withCallingHandlers({
+        if (family == "gaussian") {
+          f <- stats::lm(form, data = data_df)
+        } else {
+          f <- stats::glm(form, data = data_df,
+                          family = stats::binomial(),
+                          control = stats::glm.control(maxit = 50))
+        }
+        list(fit = f, aic = stats::AIC(f), error = NULL, warning = NULL)
+      }, warning = function(w) {
+        warn_msg <<- conditionMessage(w)
+        invokeRestart("muffleWarning")
+      })
     }, error = function(e) {
+      # on error, return Inf AIC (can't use fit)
       list(fit = NULL, aic = Inf, error = conditionMessage(e), warning = NULL)
     })
+
+    if (!is.null(warn_msg)) res$warning <- warn_msg
     return(res)
   }
 
