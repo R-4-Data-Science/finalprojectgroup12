@@ -220,7 +220,8 @@ K      = 10,
 eps    = 1e-6,
 delta  = 1,
 L      = 30
-)
+),
+verbose = TRUE
 )
 )
 
