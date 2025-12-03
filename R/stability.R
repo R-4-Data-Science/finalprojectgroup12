@@ -98,7 +98,15 @@ stability <- function(x, y, B = 50, resample = c("bootstrap","subsample"), m = N
     if (verbose && B > 10 && b %% 10 == 0) message(sprintf("Completed %d / %d resample", b, B))
   }
 
-  pi <- colMeans(z_matrix, na.rm = TRUE)
+  # determine successful resamples (rows with any non-zero entry)
+  successful_rows <- rowSums(z_matrix, na.rm = TRUE) > 0
+  B_successful <- sum(successful_rows)
+
+  if (B_successful > 0) {
+    pi <- colMeans(z_matrix[successful_rows, , drop = FALSE], na.rm = TRUE)
+  } else {
+    pi <- setNames(rep(0, p), varnames)
+  }
   names(pi) <- varnames
   B_successful <- sum(rowSums(z_matrix, na.rm = TRUE) > 0)
 
