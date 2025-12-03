@@ -60,9 +60,16 @@ stability <- function(x, y, B = 50, resample = c("bootstrap","subsample"), m = N
     xb <- x[idx, , drop = FALSE]
     yb <- y[idx]
 
-    # handle y type for binomial
-    if (is.factor(yb)) yb <- as.numeric(yb) - 1
+    # Ensure binomial is numeric 0/1
+    if (is.factor(yb)) yb <- as.integer(yb == levels(yb)[2])
     if (is.logical(yb)) yb <- as.integer(yb)
+
+    # Skip resample if binomial y has only 1 class
+    if (build_args$family == "binomial" && length(unique(yb)) < 2) {
+      failed_idx <- c(failed_idx, b)
+      if (verbose) message(sprintf("Resample %d skipped: only one class in y", b))
+      next
+    }
 
     # skip if NA
     if (any(is.na(xb)) || any(is.na(yb))){
@@ -105,10 +112,12 @@ stability <- function(x, y, B = 50, resample = c("bootstrap","subsample"), m = N
   if (B_successful > 0) {
     pi <- colMeans(z_matrix[successful_rows, , drop = FALSE], na.rm = TRUE)
   } else {
+    # If all failed, return zeros with warning
+    warning("All resamples failed or returned empty model sets. Returning zeros for stability scores.")
     pi <- setNames(rep(0, p), varnames)
   }
   names(pi) <- varnames
-  B_successful <- sum(rowSums(z_matrix, na.rm = TRUE) > 0)
+  if (verbose) message(sprintf("Resample %d skipped: only one class in y", b))
 
   result <- list(
     pi = pi,
