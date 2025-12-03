@@ -40,16 +40,17 @@ str(efron2004)
 dim(efron2004$x)
 colnames(efron2004$x)
 length(efron2004$y)
+class(efron2004$x)
 
 # Base design matrix and response
 
 X_base_raw <- efron2004$x
+class(X_base_raw) <- setdiff(class(X_base_raw), "AsIs")
 y          <- as.numeric(efron2004$y)
 
 # Standardize predictors (mean 0, sd 1) to stabilize numerical behavior
 
 X_base <- as.data.frame(scale(X_base_raw))
-
 p_base <- ncol(X_base)
 n      <- nrow(X_base)
 
@@ -211,7 +212,7 @@ stab <- suppressWarnings(
 stability(
 x        = X_train_model,
 y        = y_train,
-B        = 10,           # fewer resamples for vignette speed
+B        = 50,           # fewer resamples for vignette speed
 resample = "bootstrap",
 build_args = list(
 family = "gaussian",
