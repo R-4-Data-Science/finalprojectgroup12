@@ -113,7 +113,7 @@ stability <- function(x, y, B = 50, resample = c("bootstrap","subsample"), m = N
     # compute variable presence proportion
     z_matrix[b, ] <- vapply(varnames, function(vj) sum(vapply(models_vars, function(v) vj %in% v, integer(1))) / n_models_b, numeric(1))
 
-    if (verbose && B > 10 && b %% 10 == 0) message(sprintf("Completed %d / %d resample", b, B))
+    if (isTRUE(verbose) && B > 10 && b %% 10 == 0) message(sprintf("Completed %d / %d resample", b, B))
   }
 
   # determine successful resamples (rows with any non-zero entry)
