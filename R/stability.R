@@ -24,12 +24,24 @@
 #' stable <- stability(x = X, y = y, B = 40, resample = "subsample", m = 100, verbose = TRUE)
 #' }
 stability <- function(x, y, B = 50, resample = c("bootstrap","subsample"), m = NULL,
-                      build_args = list(K = NULL, eps = 1e-6, delta = 1, L = 50, family = "gaussian", keep_fits = FALSE),
+                      build_args = list(),
                       seed = NULL, verbose = FALSE) {
   resample <- match.arg(resample)
   x <- as.data.frame(x)
   n <- nrow(x)
   p <- ncol(x)
+
+  default_build_args <- list(
+    K = NULL,
+    eps = 1e-6,
+    delta = 1,
+    L = 50,
+    family = "gaussian",
+    keep_fits = FALSE
+  )
+
+  # merge user build_args with defaults
+  build_args <- modifyList(default_build_args, build_args)
   varnames <- colnames(x)
   if (is.null(varnames)) varnames <- paste0("V", seq_len(p))
 
