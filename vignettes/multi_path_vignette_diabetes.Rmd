@@ -9,6 +9,7 @@ vignette: >
 encoding: UTF-8
 ---
 
+# Setup
 ```{r setup, include = FALSE}
 library(finalprojectgroup12)
 library(care)    # for the efron2004 diabetes data
@@ -24,18 +25,13 @@ knitr::opts_chunk$set(
 
 # 1. Import Data: Diabetes Progression
 ```{r}
-## 01_data.R
-
 ## Load data and basic objects
-
 set.seed(123)
 
 # Load the diabetes data
-
 data(efron2004)
 
 # Basic structure
-
 str(efron2004)
 dim(efron2004$x)
 colnames(efron2004$x)
@@ -43,13 +39,11 @@ length(efron2004$y)
 class(efron2004$x)
 
 # Base design matrix and response
-
 X_base_raw <- efron2004$x
 class(X_base_raw) <- setdiff(class(X_base_raw), "AsIs")
 y          <- as.numeric(efron2004$y)
 
 # Standardize predictors (mean 0, sd 1) to stabilize numerical behavior
-
 X_base <- as.data.frame(scale(X_base_raw))
 p_base <- ncol(X_base)
 n      <- nrow(X_base)
@@ -61,10 +55,7 @@ n
 
 # 2. Feature Engineering: Second-order Terms
 ```{r}
-
-## 02_features.R
-## Builds: X (full second-order design matrix)
-
+# Builds: X (full second-order design matrix)
 # Ensure X_base is a proper data frame
 X_base <- as.data.frame(X_base)
 
@@ -75,10 +66,10 @@ n      <- nrow(X_base)
 p_base
 n
 
-# Linear terms
+# Define linear terms
 X_lin <- X_base
 
-# Quadratic terms
+# Define quadratic terms
 X_quad <- X_base^2
 colnames(X_quad) <- paste0(colnames(X_base), "^2")
 
@@ -86,7 +77,7 @@ colnames(X_quad) <- paste0(colnames(X_base), "^2")
 X_int <- NULL
 
 if (p_base >= 2) {
-  pairs     <- combn(seq_len(p_base), 2)   # all column index pairs
+  pairs     <- combn(seq_len(p_base), 2)
   num_int   <- ncol(pairs)
   X_int_mat <- matrix(NA_real_, nrow = n, ncol = num_int)
   int_names <- character(num_int)
@@ -118,20 +109,17 @@ if (is.null(X_int) || ncol(X_int) == 0) {
 dim(X)
 head(colnames(X))
 
-
 ```
 
 # 3. Train/Test Split
 ```{r}
-## 03_split.R
-
-## Builds: X_train, y_train, X_test, y_test
-
+#Setup to train on 80% of the data
 set.seed(123)
 
-train_frac <- 0.7
+train_frac <- 0.8
 n_train    <- floor(train_frac * n)
 
+# Build X_train, y_train, X_test, and y_test
 train_idx <- sample(seq_len(n), size = n_train)
 
 X_train <- X[train_idx, ]
@@ -142,8 +130,7 @@ y_test  <- y[-train_idx]
 
 c(n_train = nrow(X_train), n_test = nrow(X_test))
 
-## 03b_reduced_features.R
-
+# Use a reduced feature set for faster, more stable fits in the vignette
 max_features <- min(30, ncol(X_train))
 
 X_train_model <- X_train[, 1:max_features, drop = FALSE]
@@ -155,22 +142,7 @@ dim(X_train_model)
 
 # 4. Multi-path Forward Selection (Gaussian)
 ```{r}
-## 04_multipath.R
-
-## Builds: forest (multi-path object)
-
-# If running separately:
-
-# library(finalprojectgroup12)
-
-# source("01_data.R")
-
-# source("02_features.R")
-
-# source("03_split.R")
-
-# source("03b_reduced_features.R")
-
+# Multi-path model selection
 forest <- suppressWarnings(
 build_paths(
 x      = X_train_model,  # reduced feature set
@@ -184,7 +156,6 @@ L      = 30              # shorter paths for speed
 )
 
 # Inspect top 5 models by AIC
-
 head(forest$aic_by_model, 5)
 
 
@@ -192,22 +163,7 @@ head(forest$aic_by_model, 5)
 
 # 5. Stability Selection
 ```{r}
-## 05_stability.R
-
-## Builds: stab, stab_sorted
-
-# If running separately:
-
-# library(finalprojectgroup12)
-
-# source("01_data.R")
-
-# source("02_features.R")
-
-# source("03_split.R")
-
-# source("03b_reduced_features.R")
-
+# Compute variable inclusion frequencies
 stab <- suppressWarnings(
 stability(
 x        = X_train_model,
@@ -228,26 +184,19 @@ verbose = TRUE
 stab_sorted <- sort(stab$pi, decreasing = TRUE)
 
 # Inspect the most stable variables
-
 head(stab_sorted)
 
 ```
 
 6. Plausible Model Set
 ```{r}
-## 06_plausible_models.R
-
-# Quick diagnostics: how many variables pass a looser stability threshold?
-
+# Sanity check: how many variables pass a looser stability threshold?
 sum(stab$pi >= 0.3)
 sort(stab$pi, decreasing = TRUE)[1:10]
 
 # Construct a plausible model set with relaxed thresholds:
-
 # - Delta = 10: allow models within 10 AIC units of the best
-
 # - tau   = 0.3: require variables to appear with at least 30% stability
-
 plaus <- plausible_models(
 forest,
 pi    = stab$pi,
@@ -261,10 +210,6 @@ plaus
 
 # 7. Test-set Performance Template
 ```{r}
-
-## 07_test_performance.R
-## Requires: stab, X_train_model, y_train, X_test_model, y_test
-
 # 1. Make sure design matrices are data frames
 X_train_df <- as.data.frame(X_train_model)
 X_test_df  <- as.data.frame(X_test_model)
@@ -286,11 +231,23 @@ stable_vars <- intersect(stable_vars, colnames(X_train_df))
 
 stable_vars
 
+# ---- NEW PART: make variable names formula-safe ----
+# Any name that isn't a simple identifier gets wrapped in backticks
+is_simple_name <- grepl("^[[:alpha:]][[:alnum:]_]*$", stable_vars)
+
+stable_vars_formula <- ifelse(
+  is_simple_name,
+  stable_vars,
+  paste0("`", stable_vars, "`")
+)
+
 # 3. Build formula
 if (length(stable_vars) == 0) {
   form <- y_train ~ 1   # intercept-only model if no variables selected
 } else {
-  form <- as.formula(paste("y_train ~", paste(stable_vars, collapse = " + ")))
+  form <- as.formula(
+    paste("y_train ~", paste(stable_vars_formula, collapse = " + "))
+  )
 }
 
 form
@@ -302,6 +259,7 @@ train_df <- cbind(y_train = y_train, X_train_df)
 best_fit <- lm(form, data = train_df)
 
 # 6. Prepare test data with same predictors
+#    NOTE: subsetting uses the *original* names (without backticks)
 if (length(stable_vars) == 0) {
   test_df <- X_test_df[, 0, drop = FALSE]  # no predictors
 } else {
@@ -319,6 +277,11 @@ list(
   rmse_test     = rmse_test
 )
 
-
 ```
 
+References:
+https://chatgpt.com/share/6931a395-ca80-800a-aa05-56b1fa7e7bbf
+https://chatgpt.com/share/6931a3b2-7ef4-800a-ad67-2fb267610a1c
+https://chatgpt.com/share/6931a3c9-a628-800a-a966-99947e463e31
+https://chatgpt.com/share/6931a3e4-de9c-800a-8272-9cf31ff0a1bd
+https://chatgpt.com/share/6931a782-3128-800a-804e-5fcd8adc24a7
