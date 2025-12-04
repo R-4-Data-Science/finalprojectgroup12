@@ -8,6 +8,8 @@ output:
     toc_float: true
 ---
 
+**GitHub Repository:** [R-4-Data-Science/finalprojectgroup12](https://github.com/R-4-Data-Science/finalprojectgroup12)
+
 # Abstract
 
 This HTML report demonstrates the `finalprojectgroup12` package implementing multi-path forward stepwise selection, resampling-based stability estimation, and plausible model selection. We show examples for both Gaussian (linear) and Binomial (logistic) data.

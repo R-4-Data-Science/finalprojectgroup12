@@ -11,7 +11,7 @@
 
 <meta name="author" content="Lijuan Wang, Evan Jerome, Kira Noordwijk" />
 
-<meta name="date" content="2025-11-24" />
+<meta name="date" content="2025-12-04" />
 
 <title>Multi-Path Stepwise Selection Demonstration</title>
 
@@ -1482,11 +1482,12 @@ border-radius: 0px;
 <h1 class="title toc-ignore">Multi-Path Stepwise Selection
 Demonstration</h1>
 <h4 class="author">Lijuan Wang, Evan Jerome, Kira Noordwijk</h4>
-<h4 class="date">2025-11-24</h4>
+<h4 class="date">2025-12-04</h4>
 
 </div>
 
 
+<p><strong>GitHub Repository:</strong> <a href="https://github.com/R-4-Data-Science/finalprojectgroup12">R-4-Data-Science/finalprojectgroup12</a></p>
 <div id="abstract" class="section level1">
 <h1>Abstract</h1>
 <p>This HTML report demonstrates the <code>finalprojectgroup12</code>
@@ -1640,8 +1641,10 @@ y ~ x1 + x5
 </table>
 <pre class="r"><code># stability estimation
 stab &lt;- stability(x = X, y = y, B = 20, 
-                  build_args = list( K = 6, eps = 1e-6, delta = 1, L = 50, family = &quot;gaussian&quot;))
-stab_sorted &lt;- sort(stab$pi, decreasing = TRUE)
+                  build_args = list( K = 6, eps = 1e-6, delta = 1, L = 50, family = &quot;gaussian&quot;), verbose = TRUE)</code></pre>
+<pre><code>## Completed 10 / 20 resample</code></pre>
+<pre><code>## Completed 20 / 20 resample</code></pre>
+<pre class="r"><code>stab_sorted &lt;- sort(stab$pi, decreasing = TRUE)
 kable(data.frame(variable = names(stab_sorted), stability = stab_sorted), caption = &quot;Variable stability (linear)&quot;,format = &quot;html&quot;)</code></pre>
 <table>
 <caption>

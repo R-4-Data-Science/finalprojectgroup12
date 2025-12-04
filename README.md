@@ -7,15 +7,18 @@ selecting plausible models, and computing confusion metrics.
 
 ## Installation
 
-You can install the package from your local directory using `devtools`:
+You can install the development version directly from GitHub:
 
-```{r}
-# Install devtools if not installed
-install.packages("devtools")
-
-# Install the package from local folder
-devtools::install_local("path/to/finalprojectgroup12")
+### Using devtools:
+```r
+devtools::install_github("R-4-Data-Science/finalprojectgroup12")
 ```
+
+### Using remotes:
+```r
+remotes::install_github("R-4-Data-Science/finalprojectgroup12")
+```
+
 ## Functions
 
  1. build_paths(): build multi-path forward selection
@@ -25,25 +28,59 @@ devtools::install_local("path/to/finalprojectgroup12")
 
 ## Example
 
-```{r}
+### Linear Regression (Gaussian)
+```r
 set.seed(123)
 n <- 100
 p <- 5
 X <- data.frame(matrix(rnorm(n*p), n, p))
 colnames(X) <- paste0("X", 1:p)
-y <- rbinom(n, 1, 0.5)
+y_gaussian <- 2 + 0.5*X$X1 + 0.3*X$X2 + rnorm(n)
 
 # Build model paths
-forest <- build_paths(X, y, family = "binomial", K = 5)
+forest_gauss <- build_paths(X, y_gaussian, family = "gaussian", K = 5)
 
 # Estimate variable stability
-stable <- stability(X, y, B = 30, build_args = list(K = 5, family = "binomial"))
-pi <- stable$pi
+stable_gauss <- stability(X, y_gaussian, B = 30, family = "gaussian")
+pi_gauss <- stable_gauss$pi
 
 # Select plausible models
-plausible <- plausible_models(forest, pi, Delta = 2, tau = 0.4)
-plausible
+plausible_gauss <- plausible_models(forest_gauss, pi_gauss, Delta = 2, tau = 0.6)
+plausible_gauss
 
 # Visualize variable stability
-barplot(pi, main="Variable Stability", col="steelblue", las=2)
+barplot(pi_gauss, main = "Variable Stability (Linear)", col = "steelblue", las = 2)
+```
+
+### Logistic Regression (Binomial)
+```r
+set.seed(123)
+n <- 100
+p <- 5
+X <- data.frame(matrix(rnorm(n*p), n, p))
+colnames(X) <- paste0("X", 1:p)
+y_binomial <- rbinom(n, 1, 0.5)
+
+# Build model paths
+forest_bin <- build_paths(X, y_binomial, family = "binomial", K = 5)
+
+# Estimate variable stability
+stable_bin <- stability(X, y_binomial, B = 30, family = "binomial")
+pi_bin <- stable_bin$pi
+
+# Select plausible models
+plausible_bin <- plausible_models(forest_bin, pi_bin, Delta = 2, tau = 0.6)
+plausible_bin
+
+# Visualize variable stability
+barplot(pi_bin, main = "Variable Stability (Logistic)", col = "salmon", las = 2)
+```
+
+## Shiny Demo
+
+The package includes an interactive Shiny application to explore the multi-path selection workflow:
+
+```r
+# Run the Shiny app from the installed package
+shiny::runApp(system.file("shiny", package = "finalprojectgroup12"))
 ```
