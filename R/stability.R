@@ -31,7 +31,7 @@ stability <- function(x, y, B = 50, resample = c("bootstrap","subsample"), m = N
   n <- nrow(x)
   p <- ncol(x)
   default_build_args <- list(
-    K = NULL,
+    K = min(p,10),
     eps = 1e-6,
     delta = 1,
     L = 50,
