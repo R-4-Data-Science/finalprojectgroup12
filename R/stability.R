@@ -31,7 +31,7 @@ stability <- function(x, y, B = 50, resample = c("bootstrap","subsample"), m = N
   n <- nrow(x)
   p <- ncol(x)
   default_build_args <- list(
-    K = min(p,10),
+    K = NULL,
     eps = 1e-6,
     delta = 1,
     L = 50,
@@ -41,6 +41,9 @@ stability <- function(x, y, B = 50, resample = c("bootstrap","subsample"), m = N
 
   # merge user build_args with defaults
   build_args <- modifyList(default_build_args, build_args)
+  if (is.null(build_args$K)) {
+    build_args$K <- min(p, 10)
+  }
   if (isTRUE(verbose)) {
     message("Merged build_args:")
     print(build_args)
