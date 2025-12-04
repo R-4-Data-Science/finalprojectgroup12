@@ -1,4 +1,4 @@
----
+ ---
 title: "Breast Cancer with multi-path Model Selection"
 author: "Lijuan Wang, Evan Jerome, Kira Noordwijk"
 date: "`r Sys.Date()`"
@@ -102,7 +102,6 @@ y_test  <- y[-train_idx]
 c(n_train = nrow(X_train), n_test = nrow(X_test))
 
 # Use a reduced feature set for faster, more stable fits in the vignette
-
 max_features <- min(30, ncol(X_train))
 
 X_train_model <- X_train[, 1:max_features, drop = FALSE]
@@ -181,37 +180,77 @@ plaus_bin
 
 # 7. Test-set Performance Template
 ```{r}
-# Select best model identified in section 4
+# 0. Check class balance
+table(y_train)
+table(y_test)
 
-best_key <- rownames(forest_bin$aic_by_model)[1]
+# 1. Make sure responses are 0/1 numeric
+y_train_bin <- ifelse(y_train == 1, 1, 0)
+y_test_bin  <- ifelse(y_test  == 1, 1, 0)
 
-# Get fit
-if (!is.null(forest_bin$fits) && best_key %in% names(forest_bin$fits)) {
-best_fit <- forest_bin$fits[[best_key]]
-} else {
-stop("No fitted model found in forest_bin$fits.")
+# 2. Use the SAME design used in build_paths() and stability(): X_train, X_test
+X_train_df <- as.data.frame(X_train)
+X_test_df  <- as.data.frame(X_test)
+
+# 3. Choose variables based on stability
+tau_perf <- 0.3
+
+stable_vars <- names(stab_bin$pi[stab_bin$pi >= tau_perf])
+
+if (length(stable_vars) == 0) {
+  # If nothing passes the threshold, fall back to top 5 most stable variables
+  stab_bin_sorted <- sort(stab_bin$pi, decreasing = TRUE)
+  stable_vars <- names(head(stab_bin_sorted, 5))
 }
 
-# Predictions on test set
-prob_test <- predict(best_fit, newdata = as.data.frame(X_test), type = "response")
+# Keep only variables that actually exist in X_train_df
+stable_vars <- intersect(stable_vars, colnames(X_train_df))
+
+# If still nothing, just use the top few columns as a last resort
+if (length(stable_vars) == 0) {
+  stable_vars <- colnames(X_train_df)[1:min(5, ncol(X_train_df))]
+}
+
+stable_vars
+
+# 4. Build training data and fit logistic regression
+train_df <- data.frame(
+  y = y_train_bin,
+  X_train_df[, stable_vars, drop = FALSE]
+)
+
+# y ~ . uses all remaining columns as predictors; R handles weird names itself
+best_fit <- glm(
+  y ~ .,
+  data    = train_df,
+  family  = binomial,
+  control = glm.control(maxit = 50)  # a few extra iterations, just in case
+)
+
+# 5. Matching test data
+test_df <- data.frame(
+  X_test_df[, stable_vars, drop = FALSE]
+)
+
+# 6. Predict on test set
+prob_test <- predict(best_fit, newdata = test_df, type = "response")
 pred_test <- ifelse(prob_test >= 0.5, 1, 0)
 
-# Confusion matrix elements
-TP <- sum(pred_test == 1 & y_test == 1)
-TN <- sum(pred_test == 0 & y_test == 0)
-FP <- sum(pred_test == 1 & y_test == 0)
-FN <- sum(pred_test == 0 & y_test == 1)
+# 7. Confusion matrix and metrics
+TP <- sum(pred_test == 1 & y_test_bin == 1)
+TN <- sum(pred_test == 0 & y_test_bin == 0)
+FP <- sum(pred_test == 1 & y_test_bin == 0)
+FN <- sum(pred_test == 0 & y_test_bin == 1)
 
 conf_mat <- matrix(
-c(TP, FP, FN, TN),
-nrow = 2,
-byrow = TRUE,
-dimnames = list(c("Pred 1", "Pred 0"), c("True 1", "True 0"))
+  c(TP, FP, FN, TN),
+  nrow = 2,
+  byrow = TRUE,
+  dimnames = list(c("Pred 1", "Pred 0"), c("True 1", "True 0"))
 )
 
 conf_mat
 
-# Metrics
 accuracy    <- (TP + TN) / (TP + TN + FP + FN)
 sensitivity <- if ((TP + FN) == 0) NA else TP / (TP + FN)
 specificity <- if ((TN + FP) == 0) NA else TN / (TN + FP)
@@ -219,11 +258,12 @@ FDR         <- if ((FP + TP) == 0) NA else FP / (FP + TP)
 DOR         <- if (FP * FN == 0)   NA else (TP / FN) / (FP / TN)
 
 list(
-accuracy    = accuracy,
-sensitivity = sensitivity,
-specificity = specificity,
-FDR         = FDR,
-DOR         = DOR
+  selected_vars = stable_vars,
+  accuracy      = accuracy,
+  sensitivity   = sensitivity,
+  specificity   = specificity,
+  FDR           = FDR,
+  DOR           = DOR
 )
 
 ```
@@ -233,3 +273,4 @@ https://chatgpt.com/share/6931a395-ca80-800a-aa05-56b1fa7e7bbf
 https://chatgpt.com/share/6931a3b2-7ef4-800a-ad67-2fb267610a1c
 https://chatgpt.com/share/6931a3c9-a628-800a-a966-99947e463e31
 https://chatgpt.com/share/6931a3e4-de9c-800a-8272-9cf31ff0a1bd
+https://chatgpt.com/share/6931a782-3128-800a-804e-5fcd8adc24a7
