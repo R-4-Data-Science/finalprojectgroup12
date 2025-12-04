@@ -41,6 +41,10 @@ stability <- function(x, y, B = 50, resample = c("bootstrap","subsample"), m = N
 
   # merge user build_args with defaults
   build_args <- modifyList(default_build_args, build_args)
+  if (isTRUE(verbose)) {
+    message("Merged build_args:")
+    print(build_args)
+  }
   varnames <- colnames(x)
   if (is.null(varnames)) varnames <- paste0("V", seq_len(p))
 
@@ -128,7 +132,6 @@ stability <- function(x, y, B = 50, resample = c("bootstrap","subsample"), m = N
     pi <- setNames(rep(0, p), varnames)
   }
   names(pi) <- varnames
-  if (verbose) message(sprintf("Resample %d skipped: only one class in y", b))
 
   result <- list(
     pi = pi,
