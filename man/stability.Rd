@@ -10,8 +10,7 @@ stability(
   B = 50,
   resample = c("bootstrap", "subsample"),
   m = NULL,
-  build_args = list(K = NULL, eps = 1e-06, delta = 1, L = 50, family = "gaussian",
-    keep_fits = FALSE),
+  build_args = list(),
   seed = NULL,
   verbose = FALSE
 )
