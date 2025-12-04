@@ -9,9 +9,10 @@ vignette: >
 encoding: UTF-8
 ---
 
+# Setup
 ```{r setup, include = FALSE}
 library(finalprojectgroup12)
-library(care) # for the Wisconsin Breast Cancer data (if needed elsewhere)
+library(care) # for the Wisconsin Breast Cancer data
 library(mlbench) # for BreastCancer data
 library(knitr)
 set.seed(123)
@@ -24,19 +25,14 @@ echo = TRUE
 
 # 1. Import Data: Breast Cancer Progression
 ```{r}
-## 01_data_logistic.R
-
 # Load classic Wisconsin Breast Cancer data (mlbench::BreastCancer)
-
 data("BreastCancer")
 bc <- na.omit(BreastCancer)
 
-# Outcome: malignant = 1, benign = 0
-
+# Assign outcomes: malignant = 1, benign = 0
 y <- ifelse(bc$Class == "malignant", 1, 0)
 
 # Drop ID and Class columns, convert predictors to numeric
-
 X_base_raw <- bc[, setdiff(names(bc), c("Id", "Class"))]
 
 X_base_raw <- as.data.frame(
@@ -44,9 +40,7 @@ lapply(X_base_raw, function(col) as.numeric(as.character(col)))
 )
 
 # Standardize predictors (mean 0, sd 1) to stabilize numerical behavior
-
 X_base <- as.data.frame(scale(X_base_raw))
-
 rownames(X_base) <- NULL
 
 n      <- nrow(X_base)
@@ -59,23 +53,14 @@ p_base
 
 # 2. Feature Engineering: Second-order Terms
 ```{r}
-## 02_features_logistic.R
-
-## Requires X_base, p_base, n
-
-## Builds X (expanded features)
-
-# Linear terms
-
+# Define linear terms
 X_lin <- X_base
 
-# Quadratic terms
-
+# Define quadratic terms
 X_quad <- X_base^2
 colnames(X_quad) <- paste0(colnames(X_base), "^2")
 
 # Pairwise interactions
-
 num_int   <- p_base * (p_base - 1) / 2
 X_int     <- matrix(NA_real_, nrow = n, ncol = num_int)
 int_names <- character(num_int)
@@ -91,7 +76,6 @@ k <- k + 1
 colnames(X_int) <- int_names
 
 # Full matrix
-
 X <- cbind(X_lin, X_quad, X_int)
 
 dim(X)
@@ -100,25 +84,23 @@ dim(X)
 
 # 3. Train/Test Split
 ```{r}
-## 03_split_logistic.R
-## Builds X_train, y_train, X_test, y_test
-
+# Setup to train using 80% of data
 set.seed(123)
 
-train_frac <- 0.7
+train_frac <- 0.8
 n_train    <- floor(train_frac * n)
 
+# Build X_train, y_train, X_test, and y_test
 train_idx <- sample(seq_len(n), size = n_train)
 
 X_train <- X[train_idx, ]
 y_train <- y[train_idx]
 
 X_test  <- X[-train_idx, ]
-y_test  <- y[-train_idx]   # <-- Corrected earlier
+y_test  <- y[-train_idx]  
 
 c(n_train = nrow(X_train), n_test = nrow(X_test))
 
-## 03b_reduced_features_logistic.R
 # Use a reduced feature set for faster, more stable fits in the vignette
 
 max_features <- min(30, ncol(X_train))
@@ -132,18 +114,7 @@ dim(X_train_model)
 
 # 4. Multi-path Forward Selection (Gaussian)
 ```{r}
-## 04_multipath_logistic.R
-
-# If running separately:
-
-# library(finalprojectgroup12)
-
-# source("01_data_logistic.R")
-
-# source("02_features_logistic.R")
-
-# source("03_split_logistic.R")
-
+# Multi-path model selection
 forest_bin <- suppressWarnings(
   build_paths(
     x         = X_train,   # <- was X_train_model
@@ -158,21 +129,13 @@ forest_bin <- suppressWarnings(
 )
 
 # Show top 5 by AIC
-
 head(forest_bin$aic_by_model, 5)
 
 ```
 
 # 5. Stability Selection
 ```{r}
-## 05_stability_logistic.R
-
-# If running separately:
-# library(finalprojectgroup12)
-# source("01_data_logistic.R")
-# source("02_features_logistic.R")
-# source("03_split_logistic.R")
-
+# Compute variable inclusion frequencies
 stab_bin <- suppressWarnings(
   stability(
     x        = X_train,   # <- was X_train_model
@@ -194,18 +157,11 @@ stab_bin <- suppressWarnings(
 stab_bin_sorted <- sort(stab_bin$pi, decreasing = TRUE)
 head(stab_bin_sorted)
 
-
 ```
 
 6. Plausible Model Set
 ```{r}
-# 6. Plausible Model Set
-
-# If running separately:
-# source("04_multipath_logistic.R")
-# source("05_stability_logistic.R")
-
-# Quick diagnostics: how many variables pass a looser stability threshold?
+# Sanity check: how many variables pass a looser stability threshold?
 sum(stab_bin$pi >= 0.3)
 sort(stab_bin$pi, decreasing = TRUE)[1:10]
 
@@ -221,25 +177,15 @@ plaus_bin <- plausible_models(
 
 plaus_bin
 
-
 ```
 
 # 7. Test-set Performance Template
 ```{r}
-## 07_performance_logistic.R
-
-# If running separately:
-
-# source("04_multipath_logistic.R")
-
-# source("03_split_logistic.R")
-
-# Select best model
+# Select best model identified in section 4
 
 best_key <- rownames(forest_bin$aic_by_model)[1]
 
 # Get fit
-
 if (!is.null(forest_bin$fits) && best_key %in% names(forest_bin$fits)) {
 best_fit <- forest_bin$fits[[best_key]]
 } else {
@@ -247,12 +193,10 @@ stop("No fitted model found in forest_bin$fits.")
 }
 
 # Predictions on test set
-
 prob_test <- predict(best_fit, newdata = as.data.frame(X_test), type = "response")
 pred_test <- ifelse(prob_test >= 0.5, 1, 0)
 
 # Confusion matrix elements
-
 TP <- sum(pred_test == 1 & y_test == 1)
 TN <- sum(pred_test == 0 & y_test == 0)
 FP <- sum(pred_test == 1 & y_test == 0)
@@ -268,7 +212,6 @@ dimnames = list(c("Pred 1", "Pred 0"), c("True 1", "True 0"))
 conf_mat
 
 # Metrics
-
 accuracy    <- (TP + TN) / (TP + TN + FP + FN)
 sensitivity <- if ((TP + FN) == 0) NA else TP / (TP + FN)
 specificity <- if ((TN + FP) == 0) NA else TN / (TN + FP)
@@ -285,3 +228,8 @@ DOR         = DOR
 
 ```
 
+References:
+https://chatgpt.com/share/6931a395-ca80-800a-aa05-56b1fa7e7bbf
+https://chatgpt.com/share/6931a3b2-7ef4-800a-ad67-2fb267610a1c
+https://chatgpt.com/share/6931a3c9-a628-800a-a966-99947e463e31
+https://chatgpt.com/share/6931a3e4-de9c-800a-8272-9cf31ff0a1bd
