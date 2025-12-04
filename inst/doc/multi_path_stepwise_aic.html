@@ -1642,6 +1642,24 @@ y ~ x1 + x5
 <pre class="r"><code># stability estimation
 stab &lt;- stability(x = X, y = y, B = 20, 
                   build_args = list( K = 6, eps = 1e-6, delta = 1, L = 50, family = &quot;gaussian&quot;), verbose = TRUE)</code></pre>
+<pre><code>## Merged build_args:</code></pre>
+<pre><code>## $K
+## [1] 6
+## 
+## $eps
+## [1] 1e-06
+## 
+## $delta
+## [1] 1
+## 
+## $L
+## [1] 50
+## 
+## $family
+## [1] &quot;gaussian&quot;
+## 
+## $keep_fits
+## [1] FALSE</code></pre>
 <pre><code>## Completed 10 / 20 resample</code></pre>
 <pre><code>## Completed 20 / 20 resample</code></pre>
 <pre class="r"><code>stab_sorted &lt;- sort(stab$pi, decreasing = TRUE)

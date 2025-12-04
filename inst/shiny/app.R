@@ -70,7 +70,7 @@ ui <- fluidPage(
 
       # Plausible Model Parameters
       wellPanel(
-        h4("🎯 Plausible Model Filters", style = "color: #2c3e50;"),
+        h4("Plausible Model Filters", style = "color: #2c3e50;"),
         sliderInput("Delta_thresh", "AIC Window (Δ):",
                     min = 0, max = 10, value = 2, step = 0.5,
                     ticks = TRUE),
@@ -83,7 +83,7 @@ ui <- fluidPage(
       ),
 
       # Run Button
-      actionButton("run", "🚀 Run Analysis",
+      actionButton("run", "Run Analysis",
                    class = "btn-primary btn-lg",
                    style = "width: 100%; margin-top: 20px;"),
 
@@ -91,7 +91,7 @@ ui <- fluidPage(
 
       # GitHub Link
       wellPanel(
-        h5("📦 Package Info"),
+        h5("Package Info"),
         tags$a(href = "https://github.com/R-4-Data-Science/finalprojectgroup12",
                "GitHub Repository", target = "_blank",
                class = "btn btn-default btn-sm",
@@ -109,7 +109,7 @@ ui <- fluidPage(
         type = "tabs",
 
         # Tab 1: Overview
-        tabPanel("📋 Overview",
+        tabPanel("Overview",
                  h3("Multi-Path Stepwise Selection Package"),
                  p("This interactive application demonstrates the finalprojectgroup12 R package,
                    which implements a multi-path forward selection framework for model building,
@@ -117,7 +117,7 @@ ui <- fluidPage(
 
                  hr(),
 
-                 h4("🎯 Workflow"),
+                 h4("Workflow"),
                  tags$ol(
                    tags$li(tags$b("Build Multiple Paths:"),
                            "Start from empty model, explore several near-best paths simultaneously"),
@@ -129,7 +129,7 @@ ui <- fluidPage(
 
                  br(),
 
-                 h4("📊 Key Features"),
+                 h4("Key Features"),
                  fluidRow(
                    column(6,
                           tags$ul(
@@ -149,7 +149,7 @@ ui <- fluidPage(
 
                  hr(),
 
-                 h4("🚀 Getting Started"),
+                 h4("Getting Started"),
                  p("1. Select your data source (simulated or mtcars)"),
                  p("2. Adjust parameters using the sliders on the left"),
                  p("3. Click 'Run Analysis' to start"),
@@ -161,7 +161,7 @@ ui <- fluidPage(
         ),
 
         # Tab 2: Top Models
-        tabPanel("🏆 Top Models",
+        tabPanel("Top Models",
                  h3("Top Models by AIC"),
                  p("Models ranked by Akaike Information Criterion (lower is better)."),
 
@@ -191,7 +191,7 @@ ui <- fluidPage(
         ),
 
         # Tab 3: Variable Stability
-        tabPanel("📊 Variable Stability",
+        tabPanel("Variable Stability",
                  h3("Variable Stability Analysis"),
                  p("Proportion of models containing each variable across bootstrap resamples."),
 
@@ -215,7 +215,7 @@ ui <- fluidPage(
         ),
 
         # Tab 4: Plausible Models
-        tabPanel("🎯 Plausible Models",
+        tabPanel("Plausible Models",
                  h3("Plausible Model Selection"),
                  p("Models that are both:",
                    tags$ul(
@@ -244,7 +244,7 @@ ui <- fluidPage(
         ),
 
         # Tab 5: Visualizations
-        tabPanel("📈 Visualizations",
+        tabPanel("Visualizations",
                  h3("Model Comparison Visualizations"),
 
                  br(),
