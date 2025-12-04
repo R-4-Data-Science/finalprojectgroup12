@@ -30,7 +30,6 @@ stability <- function(x, y, B = 50, resample = c("bootstrap","subsample"), m = N
   x <- as.data.frame(x)
   n <- nrow(x)
   p <- ncol(x)
-
   default_build_args <- list(
     K = NULL,
     eps = 1e-6,
@@ -89,8 +88,7 @@ stability <- function(x, y, B = 50, resample = c("bootstrap","subsample"), m = N
       next
     }
 
-    args_bp <- c(list(x = xb, y = yb), build_args)
-    print(build_args)
+    args_bp <- modifyList(build_args, list(x = xb, y = yb))
     forest_b <- tryCatch({
       do.call(build_paths, args_bp)
     }, error = function(e){
