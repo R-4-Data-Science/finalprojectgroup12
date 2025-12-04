@@ -1,9 +1,16 @@
 # finalprojectgroup12
 
-This R package implements a multi-path forward selection framework for model building, 
-stability estimation, and selection of plausible models based on AIC. The package 
-contains functions for building model paths, estimating variable stability via resampling, 
-selecting plausible models, and computing confusion metrics.
+Tools for **multi-path forward stepwise selection (AIC)**, **stability-based variable selection**, and **plausible model selection** for linear and logistic regression.
+
+The package implements:
+
+- A **multi-path forward selection** algorithm that explores multiple promising AIC paths in parallel (`build_paths()`).
+- **Resampling-based stability estimation** for predictor selection (`stability()`).
+- A principled **plausible model filter** based on AIC and average stability (`plausible_models()`).
+- Simple **confusion-matrix–based diagnostics** for logistic regression models (`confusion_metrics()`).
+- Several vignettes demonstrating the full workflow on simulated and real data.
+
+---
 
 ## Installation
 
