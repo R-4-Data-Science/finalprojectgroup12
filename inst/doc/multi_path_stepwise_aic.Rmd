@@ -39,7 +39,7 @@ kable(head(forest$aic_by_model, 5), caption = "Top 5 linear models by AIC", form
 
 # stability estimation
 stab <- stability(x = X, y = y, B = 20, 
-                  build_args = list( K = 6, eps = 1e-6, delta = 1, L = 50, family = "gaussian"))
+                  build_args = list( K = 6, eps = 1e-6, delta = 1, L = 50, family = "gaussian"), verbose = TRUE)
 stab_sorted <- sort(stab$pi, decreasing = TRUE)
 kable(data.frame(variable = names(stab_sorted), stability = stab_sorted), caption = "Variable stability (linear)",format = "html")
 
