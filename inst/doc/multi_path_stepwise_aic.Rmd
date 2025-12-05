@@ -184,14 +184,34 @@ if(nrow(plaus_bin_jaccard) > 0){
 
 # 4. Summary and Interpretation
 
-```{r}
-cat("
-Key takeaways:
+This report demonstrates a complete workflow for multi-path stepwise selection:
 
-1. Multi-path stepwise selection generates a forest of candidate models.
-2. Stability estimation identifies consistently selected variables.
-3. Plausible models filtered by Delta/tau balance AIC performance and stability.
-4. Jaccard deduplication removes near-duplicate models for easier interpretation.
-5. Test-set evaluation provides accuracy, sensitivity, specificity, FDR, and DOR for top models.
-")
-```
+ - Multi-path stepwise selection generates a forest of candidate models through parallel exploration of the model space, moving beyond traditional single-path methods.
+ - Stability estimation identifies consistently selected variables across bootstrap resamples, providing robustness to data sampling variations.
+ - Plausible model selection balances predictive performance (via AIC with Delta threshold) and stability (via average stability with tau threshold), selecting models that perform well and are consistently identified.
+ - Jaccard deduplication removes near-duplicate models with high variable overlap, ensuring diverse candidate sets for interpretation.
+ - Comprehensive evaluation includes both training metrics (AIC, stability) and test-set performance (accuracy, sensitivity, specificity).
+
+## Key Findings
+
+For linear regression (simulated data):
+
+ - The method correctly identified the true signal variables (x1, x2, x5) with high stability scores.
+ - Variable x1 showed the highest stability (69.6%), consistent with its large coefficient magnitude.
+
+For logistic regression (Breast Cancer data):
+
+ - Cell.size, Bare.nuclei, and Cl.thickness emerged as the most stable predictors.
+ - The top plausible models achieved excellent test performance (>97% accuracy), with the best model reaching 99.27% accuracy.
+ - Including quadratic and interaction terms expanded the model space, with several interaction terms appearing in top models.
+
+## Practical Implications
+
+The same workflow can be applied to various datasets for both linear (Gaussian) and logistic (Binomial) regression modeling. This approach provides several advantages over traditional stepwise selection:
+
+ - Robustness: By considering multiple paths and stability, the method is less sensitive to random variations in the data.
+ - Transparency: All candidate models are explicitly tracked and evaluated.
+ - Interpretability: Stability scores help distinguish consistently important variables from those selected by chance.
+ - Flexibility: The framework accommodates both linear and generalized linear models with various feature engineering options.
+
+The balance between model performance and stability ensures that selected models are both predictive and reliable, making this approach suitable for both exploratory analysis and confirmatory modeling in applied research.
