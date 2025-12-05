@@ -12,7 +12,6 @@ encoding: UTF-8
 # Setup
 ```{r setup, include = FALSE}
 library(finalprojectgroup12)
-library(care) # for the Wisconsin Breast Cancer data
 library(mlbench) # for BreastCancer data
 library(knitr)
 set.seed(123)
@@ -111,7 +110,7 @@ dim(X_train_model)
 
 ```
 
-# 4. Multi-path Forward Selection (Gaussian)
+# 4. Multi-path Forward Selection (Binomial)
 ```{r}
 # Multi-path model selection
 forest_bin <- suppressWarnings(
@@ -139,7 +138,7 @@ stab_bin <- suppressWarnings(
   stability(
     x        = X_train,   # <- was X_train_model
     y        = y_train,
-    B        = 10,
+    B        = 50,
     resample = "bootstrap",
     build_args = list(
       family    = "binomial",

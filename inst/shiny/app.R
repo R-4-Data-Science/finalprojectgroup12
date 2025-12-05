@@ -18,6 +18,7 @@ ui <- fluidPage(
       }
       .shiny-output-error { color: #e74c3c; }
       .shiny-output-error:before { content: '⚠️ '; }
+      .well { margin-bottom: 15px; }
     "))
   ),
 
@@ -31,8 +32,38 @@ ui <- fluidPage(
         selectInput("data_type", "Data Source:",
                     choices = c("Simulated Linear" = "linear_sim",
                                 "Simulated Logistic" = "logistic_sim",
-                                "mtcars (Linear)" = "mtcars"),
+                                "mtcars (Linear)" = "mtcars",
+                                "Upload CSV" = "upload"),
                     selected = "linear_sim"),
+
+        # File upload UI (only shown when "Upload CSV" is selected)
+        conditionalPanel(
+          condition = "input.data_type == 'upload'",
+          hr(),
+          h5("File Upload", style = "color: #2c3e50;"),
+          fileInput("file_upload", "Choose CSV File",
+                    accept = c(".csv", ".txt"),
+                    placeholder = "Select a CSV file"),
+
+          # File options
+          checkboxInput("header", "Header", TRUE),
+          radioButtons("sep", "Separator",
+                       choices = c(Comma = ",", Semicolon = ";", Tab = "\t"),
+                       selected = ","),
+          radioButtons("quote", "Quote",
+                       choices = c(None = "", "Double Quote" = '"', "Single Quote" = "'"),
+                       selected = '"'),
+
+          # Variable selection
+          uiOutput("response_var_ui"),
+          uiOutput("predictor_vars_ui"),
+
+          # Data preview button
+          actionButton("preview_data", "Preview Data",
+                       class = "btn-default btn-sm",
+                       style = "width: 100%; margin-top: 10px;")
+        ),
+
         helpText("Choose data for analysis")
       ),
 
@@ -45,7 +76,7 @@ ui <- fluidPage(
                     selected = "gaussian"),
 
         sliderInput("K", "Max Steps (K):",
-                    min = 1, max = 10, value = 5, step = 1,
+                    min = 1, max = 20, value = 5, step = 1,
                     ticks = TRUE),
         helpText("Maximum number of forward selection steps"),
 
@@ -63,7 +94,7 @@ ui <- fluidPage(
       wellPanel(
         h4("📈 Stability Parameters", style = "color: #2c3e50;"),
         sliderInput("B", "Number of Resamples (B):",
-                    min = 10, max = 100, value = 30, step = 5,
+                    min = 10, max = 200, value = 30, step = 5,
                     ticks = TRUE),
         helpText("Bootstrap resamples for stability estimation")
       ),
@@ -135,14 +166,16 @@ ui <- fluidPage(
                           tags$ul(
                             tags$li("Supports linear & logistic regression"),
                             tags$li("Explores multiple model paths (not just one)"),
-                            tags$li("AIC-based selection with configurable thresholds")
+                            tags$li("AIC-based selection with configurable thresholds"),
+                            tags$li("Upload and analyze your own CSV data")
                           )
                    ),
                    column(6,
                           tags$ul(
                             tags$li("Bootstrap stability estimation"),
                             tags$li("Interactive parameter tuning"),
-                            tags$li("Visualization of results")
+                            tags$li("Visualization of results"),
+                            tags$li("Data preview and variable selection")
                           )
                    )
                  ),
@@ -150,17 +183,57 @@ ui <- fluidPage(
                  hr(),
 
                  h4("Getting Started"),
-                 p("1. Select your data source (simulated or mtcars)"),
-                 p("2. Adjust parameters using the sliders on the left"),
-                 p("3. Click 'Run Analysis' to start"),
-                 p("4. Explore results in the different tabs"),
+                 tags$ol(
+                   tags$li("Select your data source (simulated, mtcars, or upload your own CSV)"),
+                   tags$li("If uploading CSV, select response and predictor variables"),
+                   tags$li("Adjust parameters using the sliders on the left"),
+                   tags$li("Click 'Run Analysis' to start"),
+                   tags$li("Explore results in the different tabs")
+                 ),
 
                  div(class = "alert alert-info",
                      tags$b("Tip:"),
-                     "Start with default parameters to see how it works, then experiment!")
+                     "Start with default parameters to see how it works, then experiment!"),
+
+                 conditionalPanel(
+                   condition = "input.data_type == 'upload'",
+                   div(class = "alert alert-warning",
+                       tags$b("Note for CSV upload:"),
+                       tags$ul(
+                         tags$li("CSV files should have headers (optional)"),
+                         tags$li("Response variable should be numeric for linear regression"),
+                         tags$li("For logistic regression, response should be binary (0/1)"),
+                         tags$li("Missing values are not supported in the analysis")
+                       )
+                   )
+                 )
         ),
 
-        # Tab 2: Top Models
+        # Tab 2: Data Preview (new tab for uploaded data)
+        tabPanel("Data Preview",
+                 h3("Data Preview"),
+                 conditionalPanel(
+                   condition = "input.data_type != 'upload'",
+                   p("This tab shows uploaded data. Select 'Upload CSV' in Data Settings to use your own data.")
+                 ),
+                 conditionalPanel(
+                   condition = "input.data_type == 'upload'",
+                   fluidRow(
+                     column(12,
+                            h4("Uploaded Data Summary"),
+                            verbatimTextOutput("data_summary"),
+                            br(),
+                            h4("Data Preview"),
+                            DTOutput("data_preview_table"),
+                            br(),
+                            h4("Variable Information"),
+                            DTOutput("variable_info")
+                     )
+                   )
+                 )
+        ),
+
+        # Tab 3: Top Models
         tabPanel("Top Models",
                  h3("Top Models by AIC"),
                  p("Models ranked by Akaike Information Criterion (lower is better)."),
@@ -190,7 +263,7 @@ ui <- fluidPage(
                  verbatimTextOutput("best_model_formula")
         ),
 
-        # Tab 3: Variable Stability
+        # Tab 4: Variable Stability
         tabPanel("Variable Stability",
                  h3("Variable Stability Analysis"),
                  p("Proportion of models containing each variable across bootstrap resamples."),
@@ -214,7 +287,7 @@ ui <- fluidPage(
                  plotOutput("stability_barplot", height = "400px")
         ),
 
-        # Tab 4: Plausible Models
+        # Tab 5: Plausible Models
         tabPanel("Plausible Models",
                  h3("Plausible Model Selection"),
                  p("Models that are both:",
@@ -243,7 +316,7 @@ ui <- fluidPage(
                  plotOutput("var_freq_plot", height = "400px")
         ),
 
-        # Tab 5: Visualizations
+        # Tab 6: Visualizations
         tabPanel("Visualizations",
                  h3("Model Comparison Visualizations"),
 
@@ -273,13 +346,154 @@ ui <- fluidPage(
 # Server Logic
 server <- function(input, output, session) {
 
-  # Update family based on data selection
+  # Reactive value to store uploaded data
+  uploaded_data <- reactiveVal(NULL)
+
+  # Observe file upload
   observe({
-    if (input$data_type == "linear_sim") {
+    req(input$file_upload)
+
+    tryCatch({
+      df <- read.csv(
+        input$file_upload$datapath,
+        header = input$header,
+        sep = input$sep,
+        quote = input$quote
+      )
+
+      # Clean column names
+      colnames(df) <- make.names(colnames(df))
+      uploaded_data(df)
+
+      showNotification("File uploaded successfully!", type = "success")
+
+    }, error = function(e) {
+      showNotification(paste("Error reading file:", e$message),
+                       type = "error", duration = 10)
+      uploaded_data(NULL)
+    })
+  })
+
+  # UI for response variable selection
+  output$response_var_ui <- renderUI({
+    req(input$data_type == "upload")
+    req(uploaded_data())
+
+    selectInput("response_var", "Response Variable:",
+                choices = colnames(uploaded_data()),
+                selected = colnames(uploaded_data())[1])
+  })
+
+  # UI for predictor variable selection
+  output$predictor_vars_ui <- renderUI({
+    req(input$data_type == "upload")
+    req(uploaded_data())
+    req(input$response_var)
+
+    # All variables except response
+    pred_choices <- setdiff(colnames(uploaded_data()), input$response_var)
+
+    selectInput("predictor_vars", "Predictor Variables:",
+                choices = pred_choices,
+                selected = pred_choices,
+                multiple = TRUE,
+                selectize = TRUE)
+  })
+
+  # Update family based on response variable type for uploaded data
+  observe({
+    if (input$data_type == "upload" && !is.null(input$response_var)) {
+      df <- uploaded_data()
+      if (!is.null(df)) {
+        response_vals <- df[[input$response_var]]
+
+        # Check if response is binary for logistic regression
+        if (is.numeric(response_vals) &&
+            all(response_vals %in% c(0, 1, NA))) {
+          # Binary response - suggest logistic
+          updateSelectInput(session, "family",
+                            selected = "binomial")
+        } else if (is.numeric(response_vals)) {
+          # Continuous response - suggest linear
+          updateSelectInput(session, "family",
+                            selected = "gaussian")
+        }
+      }
+    } else if (input$data_type == "linear_sim") {
       updateSelectInput(session, "family", selected = "gaussian")
     } else if (input$data_type == "logistic_sim") {
       updateSelectInput(session, "family", selected = "binomial")
     }
+  })
+
+  # Data preview
+  observeEvent(input$preview_data, {
+    req(uploaded_data())
+
+    # Switch to Data Preview tab
+    updateTabsetPanel(session, "main_tabs", selected = "Data Preview")
+  })
+
+  # Data summary output
+  output$data_summary <- renderPrint({
+    req(input$data_type == "upload")
+    req(uploaded_data())
+
+    df <- uploaded_data()
+    cat("Dataset Summary:\n")
+    cat("────────────────\n")
+    cat("Dimensions:", nrow(df), "rows ×", ncol(df), "columns\n")
+    cat("Selected response variable:", input$response_var %||% "Not selected", "\n")
+    cat("Selected predictor variables:",
+        length(input$predictor_vars %||% character(0)), "variables\n")
+    cat("\nColumn types:\n")
+    print(sapply(df, class))
+  })
+
+  # Data preview table
+  output$data_preview_table <- renderDT({
+    req(input$data_type == "upload")
+    req(uploaded_data())
+
+    datatable(
+      uploaded_data(),
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE,
+        dom = 'Bfrtip'
+      ),
+      rownames = FALSE,
+      class = 'cell-border stripe hover'
+    )
+  })
+
+  # Variable information table
+  output$variable_info <- renderDT({
+    req(input$data_type == "upload")
+    req(uploaded_data())
+
+    df <- uploaded_data()
+
+    var_info <- data.frame(
+      Variable = colnames(df),
+      Type = sapply(df, class),
+      Missing = sapply(df, function(x) sum(is.na(x))),
+      Unique = sapply(df, function(x) length(unique(x))),
+      Mean = sapply(df, function(x) if(is.numeric(x)) mean(x, na.rm=TRUE) else NA),
+      SD = sapply(df, function(x) if(is.numeric(x)) sd(x, na.rm=TRUE) else NA),
+      Min = sapply(df, function(x) if(is.numeric(x)) min(x, na.rm=TRUE) else NA),
+      Max = sapply(df, function(x) if(is.numeric(x)) max(x, na.rm=TRUE) else NA)
+    )
+
+    datatable(
+      var_info,
+      options = list(
+        pageLength = 10,
+        dom = 'Bfrtip',
+        scrollX = TRUE
+      ),
+      rownames = FALSE
+    )
   })
 
   # Generate data
@@ -310,12 +524,43 @@ server <- function(input, output, session) {
       X <- mtcars[, -1]  # Remove mpg column
       y <- mtcars$mpg
       list(X = X, y = y, type = "mtcars (Linear)")
+
+    } else if (input$data_type == "upload") {
+      req(uploaded_data())
+      req(input$response_var)
+      req(input$predictor_vars)
+
+      df <- uploaded_data()
+
+      # Extract response and predictors
+      y <- df[[input$response_var]]
+      X <- df[, input$predictor_vars, drop = FALSE]
+
+      # Remove rows with missing values
+      complete_cases <- complete.cases(X, y)
+      y <- y[complete_cases]
+      X <- X[complete_cases, , drop = FALSE]
+
+      if (length(y) == 0 || ncol(X) == 0) {
+        showNotification("No complete cases after removing missing values!",
+                         type = "error", duration = 10)
+        return(NULL)
+      }
+
+      list(
+        X = X,
+        y = y,
+        type = paste("Uploaded Data:", input$file_upload$name),
+        response_var = input$response_var
+      )
     }
   })
 
+  # Rest of your existing server code remains the same...
   # Run analysis
   results <- eventReactive(input$run, {
     dat <- data()
+    if (is.null(dat)) return(NULL)
 
     withProgress(message = "Running multi-path analysis...", value = 0, {
       # Step 1: Multi-path selection
@@ -802,6 +1047,32 @@ server <- function(input, output, session) {
         plot.title = element_text(face = "bold", hjust = 0.5),
         plot.subtitle = element_text(hjust = 0.5, color = "gray50")
       )
+  })
+
+  # 添加一个额外的观察器来检查上传数据时的错误
+  observe({
+    if (input$data_type == "upload") {
+      req(uploaded_data())
+      req(input$response_var)
+
+      df <- uploaded_data()
+      y <- df[[input$response_var]]
+
+      # 检查响应变量类型
+      if (input$family == "binomial" && !all(y %in% c(0, 1, NA))) {
+        showNotification(
+          "Warning: For logistic regression, response variable should be binary (0/1).",
+          type = "warning", duration = 8
+        )
+      }
+
+      if (input$family == "gaussian" && !is.numeric(y)) {
+        showNotification(
+          "Warning: For linear regression, response variable should be numeric.",
+          type = "warning", duration = 8
+        )
+      }
+    }
   })
 }
 

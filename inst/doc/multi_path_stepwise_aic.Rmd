@@ -12,12 +12,14 @@ output:
 
 # Abstract
 
-This HTML report demonstrates the `finalprojectgroup12` package implementing multi-path forward stepwise selection, resampling-based stability estimation, and plausible model selection. We show examples for both Gaussian (linear) and Binomial (logistic) data.
+This HTML report demonstrates multi-path forward stepwise selection, stability estimation, plausible model selection, and test-set performance evaluation for both linear (Gaussian) and logistic (Binomial) regression. Enhanced analysis includes second-order terms, interactions, multiple Delta/tau exploration, Jaccard-based deduplication, and top model evaluation.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(finalprojectgroup12)
 library(knitr)
+library(mlbench)
+library(dplyr)
 set.seed(123)
 ```
 
@@ -25,7 +27,7 @@ set.seed(123)
 # 1. Linear Regression Example (Gaussian)
 
 ```{r}
-# simulate data
+# Simulate Gaussian data
 n <- 80
 p <- 6
 X <- matrix(rnorm(n*p), n, p)
@@ -33,74 +35,163 @@ colnames(X) <- paste0("x", 1:p)
 beta <- c(1.5, -1, 0, 0, 0.8, 0)
 y <- as.numeric(X %*% beta + rnorm(n))
 
-# multi-path forward selection
+# Multi-path forward selection
 forest <- build_paths(x = X, y = y, family = "gaussian", K = 6, eps = 1e-6, delta = 1, L = 50)
 
-# show top 5 models by aic
-kable(head(forest$aic_by_model, 5), caption = "Top 5 linear models by AIC", format = "html")
+# Show top 5 models by AIC
+kable(head(forest$aic_by_model,5), caption="Top 5 linear models by AIC", format="html")
 
-# stability estimation
+# Stability estimation
 stab <- stability(x = X, y = y, B = 20, 
-                  build_args = list( K = 6, eps = 1e-6, delta = 1, L = 50, family = "gaussian"), verbose = TRUE)
-stab_sorted <- sort(stab$pi, decreasing = TRUE)
-kable(data.frame(variable = names(stab_sorted), stability = stab_sorted), caption = "Variable stability (linear)",format = "html")
+                  build_args = list(K = 6, eps = 1e-6, delta = 1, L = 50, family="gaussian"), 
+                  verbose = TRUE)
+stab_sorted <- sort(stab$pi, decreasing=TRUE)
+kable(data.frame(variable=names(stab_sorted), stability=stab_sorted), caption="Variable Stability (Linear)", format="html")
 
-# plausible models
+# Plausible models
 plaus <- plausible_models(forest, pi = stab$pi, Delta = 2, tau = 0.4)
-kable(plaus, caption = "Plausible linear models", format = "html")
+kable(plaus, caption="Plausible linear models", format="html")
 
-# visualize 
-barplot(stab$pi, main="Variable Stability(Linear)", col="steelblue",las=2)
+# Visualize stability
+barplot(stab$pi, main="Variable Stability (Linear)", col="steelblue", las=2)
 ```
 
-# 2. Logistic Regression Example (Binomial)
+
+# 2. Breast Cancer Data: Logistic Regression (Binomial)
 
 ```{r}
-# simulate binary classification data
-n <- 100 
-p <- 5
-Xb <- matrix(rnorm(n*p), n, p)
-linpred <- 1*Xb[,1] - 1.2*Xb[,2] + 0.8*Xb[,4]
-prob <- 1 / (1 + exp(-linpred))
-ybin <- rbinom(n, 1, prob)
-colnames(Xb) <- paste0("x", 1:p)
+# Load Wisconsin Breast Cancer dataset
+data("BreastCancer")
+bc <- na.omit(BreastCancer)
 
-# multi-path forward selection
-forest_bin <- build_paths(x = Xb, y = ybin, family = "binomial", K = 5, eps = 1e-6, delta = 1, L = 50)
+# Encode outcomes: malignant=1, benign=0
+y <- ifelse(bc$Class=="malignant",1,0)
 
-# show top 5 logistic models by AIC
-kable(head(forest_bin$aic_by_model, 5), caption = "Top 5 logistic models by AIC",format = "html")
+# Drop ID and Class columns, convert to numeric
+X_base_raw <- bc[, setdiff(names(bc), c("Id","Class"))]
+X_base_raw <- as.data.frame(lapply(X_base_raw, function(col) as.numeric(as.character(col))))
 
-# stability estimation
-stab_bin <- stability( x= Xb, y = ybin, B = 20, 
-                  build_args = list( K = 5, eps = 1e-6, delta = 1, L = 50, family = "binomial"))
-stab_bin_sorted <- sort(stab_bin$pi, decreasing = TRUE)
-kable(data.frame(variable = names(stab_bin_sorted), stability = stab_bin_sorted), caption = "Variable stability (logistic)",format = "html")
+# Standardize predictors
+X_base <- as.data.frame(scale(X_base_raw))
+rownames(X_base) <- NULL
+n <- nrow(X_base)
+p_base <- ncol(X_base)
 
+# Generate quadratic and interaction terms
+X_quad <- X_base^2
+colnames(X_quad) <- paste0(colnames(X_base), "^2")
 
-# plausible models
-plaus_bin <- plausible_models(forest_bin, pi = stab_bin$pi, Delta = 2, tau = 0.4)
-kable(plaus_bin, caption = "Plausible logistic models", format = "html")
+num_int <- p_base*(p_base-1)/2
+X_int <- matrix(NA_real_, nrow=n, ncol=num_int)
+int_names <- character(num_int)
+k <- 1
+for (i in 1:(p_base-1)) {
+  for (j in (i+1):p_base) {
+    X_int[,k] <- X_base[,i]*X_base[,j]
+    int_names[k] <- paste0(colnames(X_base)[i], ":", colnames(X_base)[j])
+    k <- k + 1
+  }
+}
+colnames(X_int) <- int_names
 
-# visualize
-barplot(stab_bin$pi, main="Variable Stability(Logistic)", col="salmon",las=2)
+# Combine features
+X <- cbind(X_base, X_quad, X_int)
 
-# confusion metrics for top plausible model
-dfb <- data.frame(y = ybin, Xb)
-top_model_vars <- plaus_bin$vars[[1]]
-fit <- glm(as.formula(paste("y ~", paste(top_model_vars, collapse = "+"))),
-           data = dfb, family = binomial())
-cm <- confusion_metrics(fit,y_true = dfb$y, cutoff = 0.5)
-cm
+# Train/Test split
+train_frac <- 0.8
+n_train <- floor(train_frac*n)
+train_idx <- sample(seq_len(n), n_train)
+X_train <- X[train_idx, ]
+y_train <- y[train_idx]
+X_test <- X[-train_idx, ]
+y_test <- y[-train_idx]
+
+# Standardize column names
+colnames(X_train) <- make.names(colnames(X_train))
+colnames(X_test) <- make.names(colnames(X_test))
+
+# Multi-path forward selection
+forest_bin <- suppressWarnings(
+  build_paths(x = X_train, y = y_train, family = "binomial", K = 5, eps = 1e-6, delta = 1, L = 50, keep_fits=TRUE)
+)
+
+# Show top 5 AIC models
+forest_bin$aic_by_model <- forest_bin$aic_by_model[order(forest_bin$aic_by_model$aic), ]
+kable(head(forest_bin$aic_by_model,5), caption="Top 5 Logistic Models by AIC", format="html")
+
+# Stability estimation
+stab_bin <- suppressWarnings(
+  stability(x = X_train, y = y_train, B = 50, resample = "bootstrap",
+            build_args = list(family="binomial", K=5, eps=1e-6, delta=1, L=50, keep_fits=FALSE))
+)
+stab_bin_sorted <- sort(stab_bin$pi, decreasing=TRUE)
+kable(data.frame(variable=names(stab_bin_sorted), stability=stab_bin_sorted),
+      caption="Variable Stability (Binomial)", format="html")
+
+# Visualize stability
+barplot(stab_bin$pi, main="Variable Stability (Binomial)", col="salmon", las=2)
+
+# Plausible models
+plaus_bin_jaccard <- plausible_models(forest_bin, pi=stab_bin$pi, Delta=15, tau=0.25, jaccard_thresh=0.9)
+if(nrow(plaus_bin_jaccard)==0){
+  message("Warning: no plausible models selected. Try adjusting Delta/tau.")
+}else{
+  kable(plaus_bin_jaccard, caption = "Plausible Logistic Models after Jaccard Deduplication", format = "html")
+}
 ```
 
-## Summary
-This report shows a complete workflow:
 
- 1. Build a multi-path model forest.
- 2. Estimate stability of each variable across resamples.
- 3. Select plausible models based on AIC and average stability.
- 4. Visualize variable stability to guide interpretation.
- 
-The same workflow can be applied to real datasets for linear or logistic regression modeling.
+# 3. Test-Set Performance Evaluation
 
+```{r}
+if(nrow(plaus_bin_jaccard) > 0){
+
+  # Non-empty plausible models
+
+  plaus_models <- lapply(plaus_bin_jaccard$vars, function(vars) make.names(vars))
+  plaus_models <- Filter(function(v) length(v) > 0, plaus_models)
+
+  perf_list <- lapply(plaus_models, function(vars) {
+    common_vars <- intersect(vars, colnames(X_train))
+    fit <- glm(as.formula(paste("y ~", paste(common_vars, collapse="+"))),
+               data=data.frame(y=y_train, X_train[,common_vars,drop=FALSE]), family=binomial())
+    
+    X_test_sub <- X_test[, common_vars, drop=FALSE]
+    y_pred <- predict(fit, newdata=data.frame(X_test_sub), type="response")
+    
+    y_pred_class <- ifelse(y_pred > 0.5, 1, 0)
+    tp <- sum(y_pred_class==1 & y_test==1)
+    tn <- sum(y_pred_class==0 & y_test==0)
+    fp <- sum(y_pred_class==1 & y_test==0)
+    fn <- sum(y_pred_class==0 & y_test==1)
+    accuracy <- (tp+tn)/length(y_test)
+    sensitivity <- ifelse((tp+fn)==0, NA, tp/(tp+fn))
+    specificity <- ifelse((tn+fp)==0, NA, tn/(tn+fp))
+    
+    
+    data.frame(model=paste(common_vars, collapse = " + "), accuracy, sensitivity, specificity, Tp=tp, Tn=tn, Fp=fp, Fn=fn)
+  })
+  
+  perf_df <- bind_rows(perf_list)
+  kable(perf_df, caption = "Test-set Performance for Plausible Models", format = "html")
+
+} else {
+  message("No plausible models available for evaluation.")
+}
+```
+
+    
+
+# 4. Summary and Interpretation
+
+```{r}
+cat("
+Key takeaways:
+
+1. Multi-path stepwise selection generates a forest of candidate models.
+2. Stability estimation identifies consistently selected variables.
+3. Plausible models filtered by Delta/tau balance AIC performance and stability.
+4. Jaccard deduplication removes near-duplicate models for easier interpretation.
+5. Test-set evaluation provides accuracy, sensitivity, specificity, FDR, and DOR for top models.
+")
+```

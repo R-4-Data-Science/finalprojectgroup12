@@ -24,7 +24,7 @@
 #' confusion_metrics(fit, y_true = df$y, cutoff = 0.5)
 #' }
 confusion_metrics <- function(fit, y_true = NULL, cutoff = 0.5) {
-  if (!inherits(fit, "glm") || family(fit)$family != "binomial")
+  if (!inherits(fit, "glm") || fit$family$family != "binomial")
     stop("fit must be a logistic regression glm object")
 
   if (is.null(y_true)) y_true <- fit$y  # 默认使用 fit 内部 y
