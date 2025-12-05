@@ -86,7 +86,7 @@ dim(X)
 # Setup to train using 80% of data
 set.seed(123)
 
-train_frac <- 0.8
+train_frac <- 0.7
 n_train    <- floor(train_frac * n)
 
 # Build X_train, y_train, X_test, and y_test
