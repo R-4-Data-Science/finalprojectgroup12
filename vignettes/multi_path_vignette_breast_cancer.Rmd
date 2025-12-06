@@ -9,9 +9,7 @@ vignette: >
 encoding: UTF-8
 ---
 
-# Final R Project: Group 12
-## GitHub: R-4-Data_Science/finalprojectgroup12
-### https://github.com/R-4-Data-Science/finalprojectgroup12
+**GitHub Repository:** [R-4-Data-Science/finalprojectgroup12](https://github.com/R-4-Data-Science/finalprojectgroup12)
 
 # Install R Package
 ```{r}
@@ -167,7 +165,7 @@ head(stab_bin_sorted)
 
 ```
 
-6. Plausible Model Set
+# 6. Plausible Model Set
 ```{r}
 # Sanity check: how many variables pass a looser stability threshold?
 sum(stab_bin$pi >= 0.3)
